@@ -1,0 +1,214 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { UserPlus, Mail, Lock, User, Eye, EyeOff, GraduationCap } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+
+export default function Signup() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [major, setMajor] = useState<string>('CS');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const { signup } = useAuth();
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Validate full name has at least 3 names
+    const nameParts = name.trim().split(/\s+/);
+    if (nameParts.length < 3) {
+      setError('Please enter your full name (first, middle, and last name)');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    // Validate university email
+    if (!email.endsWith('@giu-uni.de')) {
+      setError('Please use your GIU university email (xxxxx@giu-uni.de)');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signup(email, password, name, major);
+      setSuccess(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="card max-w-md text-center">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+            <UserPlus className="w-8 h-8 text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Account Created!</h2>
+          <p className="text-slate-400 mb-6">
+            Please check your email to verify your account, then you can sign in.
+          </p>
+          <Link href="/login" className="btn btn-primary">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-violet-500/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25 mb-4">
+            <GraduationCap className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Quiz Proctor</h1>
+          <p className="text-slate-400">Assignment System</p>
+        </div>
+
+        {/* Signup Form */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
+            <UserPlus className="w-5 h-5 text-indigo-400" />
+            Create Account
+          </h2>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="label">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  className="input pl-10"
+                  placeholder="First Middle Last"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="email"
+                  className="input pl-10"
+                  placeholder="name@giu-uni.de"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Major</label>
+              <select 
+                className="input"
+                value={major}
+                onChange={(e) => setMajor(e.target.value)}
+              >
+                <option value="CS">Computer Science (CS)</option>
+                <option value="Engineering">Engineering</option>
+                <option value="BA">Business Administration (BA)</option>
+                <option value="BI">Business Informatics (BI)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="label">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="input pl-10 pr-10"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="input pl-10"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary w-full"
+            >
+              {loading ? 'Creating account...' : 'Create Account'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-slate-400 text-sm">
+              Already have an account?{' '}
+              <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
+                Sign In
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
