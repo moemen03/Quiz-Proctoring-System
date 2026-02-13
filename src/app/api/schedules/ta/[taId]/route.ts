@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, getUserProfileFromRequest } from '@/lib/supabase-admin';
 
 export async function GET(req: Request, { params }: { params: Promise<{ taId: string }> }) {
     try {
         const { taId } = await params;
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        const user = await getUserProfileFromRequest(req);
 
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -57,7 +57,8 @@ export class AssignmentService {
             { data: taSchedules },
             { data: existingAssignments },
             { data: excuses },
-            { data: recentAssignments }
+            { data: recentAssignments },
+            { data: exchangeRequests }
         ] = await Promise.all([
             // Get all TAs in major
             supabase
@@ -97,19 +98,26 @@ export class AssignmentService {
                     .select(`ta_id, quizzes!inner (date, weight)`)
                     .gte('quizzes.date', weekAgoStr)
                     .lte('quizzes.date', quiz.date);
-            })()
+            })(),
+
+            // Get Approved Exchange Requests for this Date
+            supabase
+                .from('exchange_requests')
+                .select('original_ta_id, assignments!inner(quizzes!inner(date))')
+                .eq('status', 'approved')
+                .eq('assignments.quizzes.date', quiz.date)
         ]);
 
         // 3. Process Exclusions
         const tasWithClasses = new Set(taSchedules?.map((s: any) => s.ta_id) || []);
 
         const busyTaIds = new Set(
-            existingAssignments
-                ?.filter((a: any) => a.quizzes.start_time === quiz.start_time)
-                .map((a: any) => a.ta_id) || []
+            existingAssignments?.map((a: any) => a.ta_id) || []
         );
 
         const tasWithActiveExcuses = new Set(excuses?.map((e: any) => e.ta_id) || []);
+
+        const tasWithExchanges = new Set(exchangeRequests?.map((r: any) => r.original_ta_id) || []);
 
         // 4. Process Recent Stats
         const recentHeavyCount: Record<string, number> = {};
@@ -130,6 +138,7 @@ export class AssignmentService {
                 if (busyTaIds.has(ta.id)) return false;
                 if (ta.day_off === quizDayName || quizDayName === 'Friday') return false;
                 if (tasWithActiveExcuses.has(ta.id)) return false;
+                if (tasWithExchanges.has(ta.id)) return false; // Exclude TAs who exchanged out today
                 return true;
             })
             .map((ta: any) => {
@@ -176,11 +185,11 @@ export class AssignmentService {
      * Calculate required proctors for a capacity
      */
     static calculateRequiredProctors(capacity: number): number {
-        if (capacity <= 10) return 1;
-        if (capacity <= 30) return 2;
-        if (capacity <= 60) return 3;
-        if (capacity <= 100) return 4;
-        return Math.ceil(capacity / 25);
+        if (capacity <= 25) return 2;
+        if (capacity <= 40) return 3;
+        if (capacity <= 65) return 4;
+        if (capacity <= 100) return 5;
+        return Math.ceil(capacity / 20);
     }
 
     /**

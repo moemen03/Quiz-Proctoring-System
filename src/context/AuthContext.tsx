@@ -33,35 +33,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkUser = async () => {
     try {
-      const session = localStorage.getItem('session');
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-
-      const { access_token } = JSON.parse(session);
-      if (!access_token) {
-        setLoading(false);
-        return;
-      }
-
-      // Verify token and get user
-      const res = await fetch('/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${access_token}`
-        }
-      });
+      // Always try to fetch user, cookies will be sent automatically
+      const res = await fetch('/api/auth/me');
 
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
-        localStorage.removeItem('session');
         setUser(null);
       }
     } catch (error) {
       console.error('Auth check error:', error);
-      localStorage.removeItem('session');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -80,11 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.error || 'Login failed');
     }
 
-    localStorage.setItem('session', JSON.stringify({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    }));
-    
+    // Cookies are set by the server response automatically
     setUser(data.user);
   };
 
@@ -108,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error('Logout error', e);
     }
-    localStorage.removeItem('session');
     setUser(null);
     router.push('/login');
   };

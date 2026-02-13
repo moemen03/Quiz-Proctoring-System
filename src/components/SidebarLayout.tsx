@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
+  LayoutDashboard, // Added import
   CalendarPlus, 
   Calendar, 
   Clock, 
@@ -18,10 +19,11 @@ import {
 import { useAuth } from '@/context/AuthContext';
 
 const baseNavigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: true }, // Added Dashboard
   { name: 'All Quizzes', href: '/quizzes', icon: Calendar },
   { name: 'Add Quiz', href: '/add-quiz', icon: CalendarPlus, adminOnly: true },
   { name: 'Schedules', href: '/schedules', icon: Clock },
-  { name: 'Manage Proctors', href: '/proctors', icon: Users, adminOnly: true },
+  { name: 'Manage TAs', href: '/manage-tas', icon: Users, adminOnly: true },
   { name: 'Summary', href: '/summary', icon: BarChart3 },
 ];
 
@@ -44,6 +46,15 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   });
 
   const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
+  
+  console.log('Sidebar Debug:', { 
+    user: user?.email, 
+    role: user?.role, 
+    isAdmin, 
+    path: pathname,
+    navCount: filteredNav.length 
+  });
+  console.log(filteredNav);
 
   return (
     <div className="min-h-screen flex">
@@ -73,7 +84,9 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </div>
-
+            
+              
+            
           <nav className="space-y-1 w-full text-center">
             {filteredNav.map((item) => {
               const isActive = pathname === item.href;

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     current_assignments INTEGER DEFAULT 0,
     day_off TEXT,
     total_workload_points NUMERIC DEFAULT 0,
-    target_workload NUMERIC DEFAULT 0,
+    target_workload NUMERIC DEFAULT 14,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

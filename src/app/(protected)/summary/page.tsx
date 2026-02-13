@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart3, User, Calendar, TrendingUp, Search } from 'lucide-react';
-import { userApi, User as TaUser, ProctorSummary } from '@/lib/api-client';
+import { userApi, User as TaUser, ProctorSummary, exchangeApi } from '@/lib/api-client';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
 
@@ -52,15 +52,35 @@ export default function ProctorSummaryPage() {
     }
   };
 
+  const [requests, setRequests] = useState<any[]>([]); // Use appropriate type if available, using any to avoid import issues for now
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  // ... imports need to be checked if ExchangeRequest is exported from api-client
+  // It is exported.
+
   const loadSummary = async (taId: string) => {
     setLoadingSummary(true);
+    setLoadingRequests(true);
     try {
       const data = await userApi.getSummary(taId);
       setSummary(data);
+      
+      // Fetch requests only if viewing own summary (or if admin implementation allows filtering by user ID in fetch)
+      // The API currently returns "My Requests" for TA, or "All Pending" for Admin. 
+      // Admin viewing a specific TA's requests isn't directly supported by GET /api/exchange-requests yet (it returns ALL pending).
+      // So for now, we only show this detailed list for the TA themselves.
+      if (!isAdmin) {
+          const reqs = await exchangeApi.getAll();
+          setRequests(reqs);
+      } else {
+          setRequests([]); // Or implement admin-side filtering if needed
+      }
+
     } catch (error) {
       console.error('Error loading summary:', error);
     } finally {
       setLoadingSummary(false);
+      setLoadingRequests(false);
     }
   };
 
@@ -205,6 +225,45 @@ export default function ProctorSummaryPage() {
                     ))}
                   </div>
                 )}
+              </div>
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mt-6">
+                <h3 className="font-semibold text-white mb-4">Exchange Requests</h3>
+                 {loadingRequests ? (
+                    <div className="flex justify-center py-4"><PageLoader /></div>
+                 ) : requests.length === 0 ? (
+                    <p className="text-slate-400">No exchange requests found</p>
+                 ) : (
+                    <div className="space-y-3">
+                      {requests.map((req) => (
+                        <div key={req.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`w-2 h-2 rounded-full ${
+                                    req.status === 'approved' ? 'bg-emerald-500' :
+                                    req.status === 'rejected' ? 'bg-red-500' :
+                                    'bg-amber-500'
+                                }`} />
+                                <span className="font-medium text-white">
+                                    {req.assignments?.quizzes?.course_name}
+                                </span>
+                            </div>
+                            <div className="text-sm text-slate-400 flex items-center gap-3">
+                                <span>{req.assignments?.quizzes?.date}</span>
+                                <span>{req.assignments?.quizzes?.start_time}</span>
+                            </div>
+                            {req.reason && <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>}
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full border border-opacity-30 ${
+                              req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500' :
+                              req.status === 'rejected' ? 'bg-red-500/20 text-red-400 border-red-500' :
+                              'bg-amber-500/20 text-amber-400 border-amber-500'
+                          }`}>
+                              {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                 )}
               </div>
             </div>
           ) : (

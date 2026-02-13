@@ -1,20 +1,43 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, getAuthClient } from '@/lib/supabase-admin';
+import { cookies } from 'next/headers';
 
 export async function GET(req: Request) {
     try {
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Missing or invalid authorization header' }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
+        const cookieStore = await cookies();
+        let token = cookieStore.get('access_token')?.value;
+        const refreshToken = cookieStore.get('refresh_token')?.value;
 
         // Verify the token with Supabase
-        const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        let authUser = null;
+        let authError = null;
+        let newSession = null;
 
-        if (authError || !authUser) {
-            return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+        if (token) {
+            const { data, error } = await supabaseAdmin.auth.getUser(token);
+            authUser = data.user;
+            authError = error;
+        }
+
+        // If access token is missing or invalid, try to refresh if we have a refresh token
+        if ((!token || authError) && refreshToken) {
+            console.log('[Auth API] Access token missing or invalid, attempting refresh');
+            const authClient = getAuthClient();
+            const { data, error: refreshError } = await authClient.auth.refreshSession({ refresh_token: refreshToken });
+
+            if (!refreshError && data.session) {
+                console.log('[Auth API] Token refresh successful');
+                authUser = data.user;
+                token = data.session.access_token;
+                newSession = data.session;
+            } else {
+                console.error('[Auth API] Token refresh failed:', refreshError);
+            }
+        }
+
+        if (!authUser) {
+            console.error('[Auth API] No authenticated user found');
+            return NextResponse.json({ error: 'Unauthorized', details: authError?.message }, { status: 401 });
         }
 
         // Get user profile from public.users table
@@ -25,10 +48,11 @@ export async function GET(req: Request) {
             .single();
 
         if (profileError || !userProfile) {
-            return NextResponse.json({ error: 'User profile not found' }, { status: 401 });
+            console.error('[Auth API] Profile not found for user:', authUser.id, profileError);
+            return NextResponse.json({ error: 'User profile not found', details: profileError?.message }, { status: 401 });
         }
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             user: {
                 id: userProfile.id,
                 auth_id: authUser.id,
@@ -38,6 +62,29 @@ export async function GET(req: Request) {
                 major: userProfile.major
             }
         });
+
+        // If we refreshed the token, update cookies
+        if (newSession) {
+            response.cookies.set('access_token', newSession.access_token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                path: '/',
+                maxAge: 60 * 60 * 24 * 7 // 1 week
+            });
+
+            if (newSession.refresh_token) {
+                response.cookies.set('refresh_token', newSession.refresh_token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    path: '/',
+                    maxAge: 60 * 60 * 24 * 7 // 1 week
+                });
+            }
+        }
+
+        return response;
 
     } catch (error) {
         console.error('Get profile error:', error);

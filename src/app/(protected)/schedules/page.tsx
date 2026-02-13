@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Clock, Trash2, X, Settings, Users, Loader } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { Clock, Trash2, X, Settings, Users, Loader, Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { scheduleApi, userApi, User, ScheduleSlot } from '@/lib/api-client';
 import toast, { Toaster } from 'react-hot-toast';
@@ -35,6 +35,47 @@ const getSlotTime = (slot: number) => {
   return `${formatTime(startMinutes)} - ${formatTime(endMinutes)}`;
 };
 
+// ============ Optimized Memoized Cell Component ============
+const ScheduleSlotCell = memo(({ 
+  day, 
+  slot, 
+  data, 
+  isSelected, 
+  onMouseDown, 
+  onMouseEnter 
+}: { 
+  day: string; 
+  slot: number; 
+  data?: ScheduleSlot; 
+  isSelected: boolean; 
+  onMouseDown: (day: string, slot: number) => void;
+  onMouseEnter: (day: string, slot: number) => void;
+}) => {
+  return (
+    <td
+      onMouseDown={() => onMouseDown(day, slot)}
+      onMouseEnter={() => onMouseEnter(day, slot)}
+      className={`p-1 border-l border-slate-700/50 h-24 align-top cursor-pointer transition-all select-none
+        ${isSelected ? 'ring-2 ring-indigo-500 bg-indigo-500/10' : 'hover:bg-slate-700/30'}
+      `}
+    >
+      {data ? (
+        <div className={`w-full h-full p-2 rounded-md border ${TYPE_COLORS[data.course_type] || TYPE_COLORS.Lecture} overflow-hidden`}>
+          <div className="font-semibold text-xs truncate" title={data.course_name}>{data.course_name}</div>
+          <div className="text-[10px] opacity-75 mt-0.5">{data.course_type}</div>
+          {data.location && <div className="text-[10px] mt-1 font-medium truncate">{data.location}</div>}
+        </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-slate-600 italic text-xs group">
+          <span className="group-hover:text-slate-400 transition-colors opacity-50 group-hover:opacity-100">+</span>
+        </div>
+      )}
+    </td>
+  );
+});
+
+ScheduleSlotCell.displayName = 'ScheduleSlotCell';
+
 export default function SchedulesPage() {
   const { user, isAdmin, loading } = useAuth();
   
@@ -50,6 +91,7 @@ export default function SchedulesPage() {
 // ============ ADMIN VIEW - Read Only ============
 function AdminScheduleViewer() {
   const [tas, setTas] = useState<User[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedTa, setSelectedTa] = useState<User | null>(null);
   const [schedule, setSchedule] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +139,11 @@ function AdminScheduleViewer() {
     return schedule.find(s => s.day_of_week === day && s.slot_number === slot);
   };
 
+  const filteredTas = tas.filter(ta => 
+    ta.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    ta.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const activeDays = DAYS.filter(d => d !== 'Friday' && d !== selectedTa?.day_off);
   const slots = [1, 2, 3, 4, 5];
 
@@ -104,8 +151,6 @@ function AdminScheduleViewer() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
           <Users className="w-7 h-7 text-white" />
@@ -117,15 +162,34 @@ function AdminScheduleViewer() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
-        {/* TA List - Left Side */}
         <div className="md:w-72 shrink-0">
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-            <h2 className="text-sm font-medium text-slate-400 mb-4">Select TA</h2>
-            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-              {tas.length === 0 ? (
-                <p className="text-slate-500 text-sm">No TAs found</p>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-slate-400">Select TA</h2>
+              <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-full">
+                {filteredTas.length}
+              </span>
+            </div>
+
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search TAs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+              />
+            </div>
+
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              {filteredTas.length === 0 ? (
+                <div className="text-center py-8">
+                  <Search className="w-8 h-8 text-slate-700 mx-auto mb-2 opacity-20" />
+                  <p className="text-slate-500 text-xs">No TAs found</p>
+                </div>
               ) : (
-                tas.map(ta => (
+                filteredTas.map(ta => (
                   <button
                     key={ta.id}
                     onClick={() => setSelectedTa(ta)}
@@ -146,14 +210,11 @@ function AdminScheduleViewer() {
           </div>
         </div>
 
-        {/* Schedule Display - Right Side */}
         <div className="flex-1 overflow-hidden">
           {selectedTa ? (
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 overflow-x-auto">
               <div className="flex items-center justify-between mb-4 min-w-[600px]">
-                <h2 className="text-lg font-semibold text-white">
-                  {selectedTa.name}'s Schedule
-                </h2>
+                <h2 className="text-lg font-semibold text-white">{selectedTa.name}'s Schedule</h2>
                 {selectedTa.day_off && (
                   <span className="text-sm text-slate-400 bg-slate-900/50 px-3 py-1 rounded-lg border border-slate-700">
                     Days Off: <span className="text-white">Friday, {selectedTa.day_off}</span>
@@ -183,9 +244,7 @@ function AdminScheduleViewer() {
                   <tbody>
                     {activeDays.map(day => (
                       <tr key={day} className="border-b border-slate-700/50 last:border-0">
-                        <td className="p-3 font-medium text-white bg-slate-800/50 border-r border-slate-700">
-                          {day}
-                        </td>
+                        <td className="p-3 font-medium text-white bg-slate-800/50 border-r border-slate-700">{day}</td>
                         {slots.map(slot => {
                           const data = getSlotData(day, slot);
                           return (
@@ -197,9 +256,7 @@ function AdminScheduleViewer() {
                                   {data.location && <div className="text-xs mt-1 font-medium">{data.location}</div>}
                                 </div>
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-700 text-sm">
-                                  —
-                                </div>
+                                <div className="w-full h-full flex items-center justify-center text-slate-700 text-sm">—</div>
                               )}
                             </td>
                           );
@@ -252,18 +309,31 @@ function TAScheduleBuilder() {
   const [selectionStart, setSelectionStart] = useState<{ day: string; slot: number } | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{ day: string; slot: number } | null>(null);
 
+  // Refs for tracking drag state without triggering re-renders (keeps callbacks stable)
+  const dragRef = useRef({ isDragging: false, selectionStart: null as { day: string; slot: number } | null });
+
   useEffect(() => {
-    loadData();
+    dragRef.current = { isDragging, selectionStart };
+  }, [isDragging, selectionStart]);
+
+  useEffect(() => {
+    loadSettings();
+    loadSchedule();
   }, []);
 
-  const loadData = async () => {
+  const loadSettings = async () => {
     try {
-      const [scheduleData, userData] = await Promise.all([
-        scheduleApi.getMy(),
-        userApi.getSettings(),
-      ]);
-      setSchedule(scheduleData);
+      const userData = await userApi.getSettings();
       setDayOff(userData.day_off);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadSchedule = async () => {
+    try {
+      const scheduleData = await scheduleApi.getMy();
+      setSchedule(scheduleData);
       
       if (scheduleData.length > 0) {
         const maxSlot = Math.max(...scheduleData.map(s => s.slot_number), 5);
@@ -290,25 +360,38 @@ function TAScheduleBuilder() {
     }
   };
 
-  const getSlotData = (day: string, slot: number) => {
+  const getSlotData = useCallback((day: string, slot: number) => {
     return schedule.find(s => s.day_of_week === day && s.slot_number === slot);
-  };
+  }, [schedule]);
 
-  const handleMouseDown = (day: string, slot: number) => {
+  const handleMouseDown = useCallback((day: string, slot: number) => {
     setIsDragging(true);
     setSelectionStart({ day, slot });
     setSelectionEnd({ day, slot });
-  };
+  }, []);
 
-  const handleMouseEnter = (day: string, slot: number) => {
+  const handleMouseEnter = useCallback((day: string, slot: number) => {
+    const { isDragging, selectionStart } = dragRef.current;
     if (isDragging && selectionStart?.day === day) {
       setSelectionEnd({ day, slot });
     }
-  };
+  }, []);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
+    if (!dragRef.current.isDragging) return;
     setIsDragging(false);
-    if (selectionStart && selectionEnd) {
+    
+    // We need the current state values for the modal logic
+    // Since this is called from the parent div's onMouseUp
+    // it will have access to the state at the time of the closure.
+    // However, to be safe and use latest state in a stable callback, 
+    // we can use function updates or just accept this one won't be perfectly stable 
+    // but onMouseUp happens once per drag, so it's fine.
+  }, []);
+
+  // Effect to handle the completion of a drag
+  useEffect(() => {
+    if (!isDragging && selectionStart && selectionEnd) {
       const data = getSlotData(selectionStart.day, selectionStart.slot);
       setSelectedSlot(selectionStart);
       
@@ -323,13 +406,19 @@ function TAScheduleBuilder() {
       }
       setShowModal(true);
     }
-  };
+  }, [isDragging, getSlotData]); // Only depends on isDragging becoming false
 
-  const isSelected = (day: string, slot: number) => {
+  const isSelected = useCallback((day: string, slot: number) => {
     if (!selectionStart || !selectionEnd || selectionStart.day !== day) return false;
     const minSlot = Math.min(selectionStart.slot, selectionEnd.slot);
     const maxSlot = Math.max(selectionStart.slot, selectionEnd.slot);
     return slot >= minSlot && slot <= maxSlot;
+  }, [selectionStart, selectionEnd]);
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
   };
 
   const saveSlot = async () => {
@@ -345,29 +434,52 @@ function TAScheduleBuilder() {
     const day = selectionStart.day;
     const isUpdate = getSlotData(selectionStart.day, selectionStart.slot) !== undefined;
 
-    const loadingToast = toast.loading(isUpdate ? 'Updating slot...' : 'Adding slot...');
+    const oldSchedule = [...schedule];
+    const tempSchedule = [...schedule];
+    
+    for (let s = minSlot; s <= maxSlot; s++) {
+      const idx = tempSchedule.findIndex(item => item.day_of_week === day && item.slot_number === s);
+      if (idx !== -1) tempSchedule.splice(idx, 1);
+    }
+
+    const newSlots: ScheduleSlot[] = [];
+    for (let s = minSlot; s <= maxSlot; s++) {
+      newSlots.push({
+        id: `temp-${Date.now()}-${s}`,
+        ta_id: user.id,
+        day_of_week: day,
+        slot_number: s,
+        ...slotForm
+      });
+    }
+
+    setSchedule([...tempSchedule, ...newSlots]);
+    closeModal();
+    const loadingToast = toast.loading(isUpdate ? 'Updating...' : 'Adding...');
 
     try {
+      const promises = [];
       for (let s = minSlot; s <= maxSlot; s++) {
-        const existing = getSlotData(day, s);
-        
+        const existing = oldSchedule.find(item => item.day_of_week === day && item.slot_number === s);
         if (existing) {
-          await scheduleApi.update(existing.id, slotForm);
+           promises.push(scheduleApi.update(existing.id, slotForm));
         } else {
-          await scheduleApi.create({
+           promises.push(scheduleApi.create({
             day_of_week: day,
             slot_number: s,
             ...slotForm,
-          });
+          }));
         }
       }
-      
-      await loadData();
-      closeModal();
-      toast.success(isUpdate ? 'Slot updated!' : 'Slot added!', { id: loadingToast });
+
+      await Promise.all(promises);
+      loadSchedule(); 
+      toast.success('Saved!', { id: loadingToast });
     } catch (error) {
       console.error('Error saving slot:', error);
-      toast.error('Failed to save slot', { id: loadingToast });
+      setSchedule(oldSchedule);
+      // Show the specific error message from the API (e.g. "Maximum 12 slots allowed")
+      toast.error((error as Error).message || 'Failed to save', { id: loadingToast, duration: 4000 });
     }
   };
 
@@ -378,42 +490,44 @@ function TAScheduleBuilder() {
     const maxSlot = Math.max(selectionStart.slot, selectionEnd.slot);
     const day = selectionStart.day;
 
-    const loadingToast = toast.loading('Removing slot...');
+    const oldSchedule = [...schedule];
+    const newSchedule = schedule.filter(s => !(s.day_of_week === day && s.slot_number >= minSlot && s.slot_number <= maxSlot));
+    
+    setSchedule(newSchedule);
+    closeModal();
+    const loadingToast = toast.loading('Removing...');
 
     try {
+      const promises = [];
       for (let s = minSlot; s <= maxSlot; s++) {
-        const existing = getSlotData(day, s);
+        const existing = oldSchedule.find(item => item.day_of_week === day && item.slot_number === s);
         if (existing) {
-          await scheduleApi.delete(existing.id);
+          promises.push(scheduleApi.delete(existing.id));
         }
       }
-      await loadData();
-      closeModal();
-      toast.success('Slot removed!', { id: loadingToast });
+      await Promise.all(promises);
+      toast.success('Removed!', { id: loadingToast });
     } catch (error) {
       console.error('Error deleting slot:', error);
-      toast.error('Failed to remove slot', { id: loadingToast });
+      setSchedule(oldSchedule);
+      toast.error('Failed to remove.', { id: loadingToast });
     }
   };
 
   const clearSchedule = async () => {
     if (!confirm('Are you sure you want to clear your entire schedule?')) return;
     
-    const loadingToast = toast.loading('Clearing schedule...');
+    const oldSchedule = [...schedule];
+    setSchedule([]);
+    const loadingToast = toast.loading('Clearing...');
     try {
       await scheduleApi.clear();
-      await loadData();
-      toast.success('Schedule cleared!', { id: loadingToast });
+      toast.success('Cleared!', { id: loadingToast });
     } catch (error) {
       console.error('Error clearing schedule:', error);
-      toast.error('Failed to clear schedule', { id: loadingToast });
+      setSchedule(oldSchedule);
+      toast.error('Failed to clear', { id: loadingToast });
     }
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectionStart(null);
-    setSelectionEnd(null);
   };
 
   const slots = Array.from({ length: slotCount }, (_, i) => i + 1);
@@ -421,7 +535,6 @@ function TAScheduleBuilder() {
 
   if (loading) return <PageLoader />;
 
-  // Day off selection screen (first time only)
   if (!dayOff) {
     return (
       <div className="max-w-2xl mx-auto text-center px-4 py-12">
@@ -429,9 +542,7 @@ function TAScheduleBuilder() {
           <Clock className="w-8 h-8 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-white mb-4">Select Your Day Off</h1>
-        <p className="text-slate-400 mb-8">
-          Friday is automatically a day off. Please select your additional weekly day off.
-        </p>
+        <p className="text-slate-400 mb-8">Friday is automatically a day off. Please select your additional weekly day off.</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {DAYS.filter(d => d !== 'Friday').map(day => (
             <button
@@ -448,13 +559,11 @@ function TAScheduleBuilder() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6" onMouseUp={() => isDragging && handleMouseUp()}>
-      
-      {/* Header */}
+    <div className="max-w-7xl mx-auto px-4 py-6" onMouseUp={handleMouseUp}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Weekly Schedule</h1>
-          <p className="text-sm text-slate-400 animate-glow">Select a slot or drag to select multiple slots</p>
+          <p className="text-sm text-slate-400 ">Select a slot or drag to select multiple slots</p>
         </div>
         <div className="flex items-center gap-4">
           <button
@@ -473,7 +582,6 @@ function TAScheduleBuilder() {
         </div>
       </div>
 
-      {/* Schedule Grid */}
       <div ref={tableRef} className="bg-slate-800 rounded-xl border border-slate-700 p-4 overflow-x-auto">
         <table className="w-full min-w-[800px] border-collapse">
           <thead>
@@ -492,41 +600,25 @@ function TAScheduleBuilder() {
           <tbody>
             {activeDays.map(day => (
               <tr key={day} className="border-b border-slate-700/50 last:border-0">
-                <td className="p-4 font-medium text-white bg-slate-800/50 border-r border-slate-700">
-                  {day}
-                </td>
-                {slots.map(slot => {
-                  const data = getSlotData(day, slot);
-                  const selected = isSelected(day, slot);
-                  
-                  return (
-                    <td
-                      key={slot}
-                      onMouseDown={() => handleMouseDown(day, slot)}
-                      onMouseEnter={() => handleMouseEnter(day, slot)}
-                      className={`p-1 border-l border-slate-700/50 h-24 align-top cursor-pointer transition-all select-none
-                        ${selected ? 'ring-2 ring-indigo-500 bg-indigo-500/10' : 'hover:bg-slate-700/30'}
-                      `}
-                    >
-                      {data ? (
-                        <div className={`w-full h-full p-2 rounded-md border ${TYPE_COLORS[data.course_type] || TYPE_COLORS.Lecture} overflow-hidden`}>
-                          <div className="font-semibold text-xs truncate" title={data.course_name}>{data.course_name}</div>
-                          <div className="text-[10px] opacity-75 mt-0.5">{data.course_type}</div>
-                          {data.location && <div className="text-[10px] mt-1 font-medium truncate">{data.location}</div>}
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600 italic text-xs group">
-                          <span className="group-hover:text-slate-400 transition-colors opacity-50 group-hover:opacity-100">+</span>
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
+                <td className="p-4 font-medium text-white bg-slate-800/50 border-r border-slate-700">{day}</td>
+                {slots.map(slot => (
+                  <ScheduleSlotCell
+                    key={`${day}-${slot}`}
+                    day={day}
+                    slot={slot}
+                    data={getSlotData(day, slot)}
+                    isSelected={isSelected(day, slot)}
+                    onMouseDown={handleMouseDown}
+                    onMouseEnter={handleMouseEnter}
+                  />
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <Toaster />
 
       {/* Slot Modal */}
       {showModal && (
@@ -545,10 +637,10 @@ function TAScheduleBuilder() {
 
             <div className="space-y-4">
               <div>
-                <label className="label text-xs">Name</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Name</label>
                 <input
                   type="text"
-                  className="input"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   placeholder="Course Name / Activity"
                   value={slotForm.course_name}
                   onChange={(e) => setSlotForm({ ...slotForm, course_name: e.target.value })}
@@ -556,7 +648,7 @@ function TAScheduleBuilder() {
               </div>
 
               <div>
-                <label className="label text-xs">Type</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   {SLOT_TYPES.map(type => (
                     <button
@@ -576,10 +668,10 @@ function TAScheduleBuilder() {
               </div>
 
               <div>
-                <label className="label text-xs">Location</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Location</label>
                 <input
                   type="text"
-                  className="input"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   placeholder="e.g. C.301"
                   value={slotForm.location}
                   onChange={(e) => setSlotForm({ ...slotForm, location: e.target.value })}
@@ -587,7 +679,7 @@ function TAScheduleBuilder() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                {getSlotData(selectedSlot!.day, selectedSlot!.slot) && (
+                {selectedSlot && getSlotData(selectedSlot.day, selectedSlot.slot) && (
                   <button
                     onClick={deleteSlot}
                     className="p-2 text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
@@ -596,8 +688,11 @@ function TAScheduleBuilder() {
                     <Trash2 className="w-5 h-5" />
                   </button>
                 )}
-                <button onClick={saveSlot} className="flex-1 btn btn-primary">
-                  {getSlotData(selectedSlot!.day, selectedSlot!.slot) ? 'Update Slot' : 'Save Slot'}
+                <button 
+                  onClick={saveSlot} 
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg transition-all"
+                >
+                  {selectedSlot && getSlotData(selectedSlot.day, selectedSlot.slot) ? 'Update Slot' : 'Save Slot'}
                 </button>
               </div>
             </div>
@@ -615,9 +710,7 @@ function TAScheduleBuilder() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-slate-400 mb-4 text-sm">
-              Select your additional day off (Friday is always off).
-            </p>
+            <p className="text-slate-400 mb-4 text-sm">Select your additional day off (Friday is always off).</p>
             <div className="grid grid-cols-2 gap-3">
               {DAYS.filter(d => d !== 'Friday').map(day => (
                 <button

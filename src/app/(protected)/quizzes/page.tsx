@@ -18,22 +18,21 @@ import {
   Loader,
   Copy,
   Check,
-  Plus
+  AlertTriangle
 } from 'lucide-react';
-import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
-import { quizApi, assignmentApi, Quiz, TASuggestion } from '@/lib/api-client';
+import { quizApi, assignmentApi, exchangeApi, Quiz, TASuggestion } from '@/lib/api-client';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
 import { QuizForm } from '@/components/QuizForm';
 
 // Calculate required proctors based on capacity
 const calculateProctorsForCapacity = (capacity: number): number => {
-  if (capacity <= 10) return 1;
-  if (capacity <= 30) return 2;
-  if (capacity <= 60) return 3;
-  if (capacity <= 100) return 4;
-  return Math.ceil(capacity / 25);
+ if (capacity <= 25) return 2;
+  if (capacity <= 40) return 3;
+  if (capacity <= 65) return 4;
+  if (capacity <= 100) return 5;
+  return Math.ceil(capacity / 20); // For larger capacities
 };
 
 export default function QuizzesPage() {
@@ -55,6 +54,7 @@ export default function QuizzesPage() {
   useEffect(() => {
     loadQuizzes();
     
+    // Close menus on click outside
     const handleClickOutside = () => setActiveMenuQuiz(null);
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
@@ -105,17 +105,37 @@ export default function QuizzesPage() {
   };
 
   const deleteQuiz = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this quiz?')) return;
-
-    const loadingToast = toast.loading('Deleting quiz...');
-    try {
-      await quizApi.delete(id);
-      await loadQuizzes();
-      toast.success('Quiz deleted successfully', { id: loadingToast });
-    } catch (error) {
-      console.error('Error deleting quiz:', error);
-      toast.error('Failed to delete quiz', { id: loadingToast });
-    }
+    toast((t) => (
+      <div className="flex flex-col gap-2">
+        <p className="font-medium text-slate-800 ">
+          Are you sure you want to delete this quiz?
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await quizApi.delete(id);
+                await loadQuizzes();
+                toast.success('Quiz deleted successfully');
+              } catch (error) {
+                console.error('Error deleting quiz:', error);
+                toast.error('Failed to delete quiz');
+              }
+            }}
+            className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition-colors"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded text-sm transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { duration: 5000, id: 'delete-quiz-confirm' });
   };
 
   const handleCopyQuiz = async (quiz: Quiz) => {
@@ -180,6 +200,7 @@ export default function QuizzesPage() {
     };
   };
 
+  // Calculate end time from start time + duration
   const calculateEndTime = (startTime: string, durationMinutes: number): string => {
     if (!startTime) return '';
     const [hours, minutes] = startTime.split(':').map(Number);
@@ -189,10 +210,12 @@ export default function QuizzesPage() {
     return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
   };
 
+  // Dynamically determine quiz status based on current time
   const getQuizStatus = (quiz: Quiz): string => {
     const now = new Date();
     const [startHours, startMinutes] = quiz.start_time.split(':').map(Number);
     
+    // Create quiz start datetime
     const quizStart = new Date(quiz.date);
     quizStart.setHours(startHours, startMinutes, 0, 0);
     
@@ -208,6 +231,7 @@ export default function QuizzesPage() {
     }
   };
 
+  // Filter and Search Logic
   const filteredQuizzes = useMemo(() => {
     return quizzes.filter(quiz => {
       const matchesSearch = quiz.course_name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -215,7 +239,11 @@ export default function QuizzesPage() {
       const matchesStatus = statusFilter === 'all' || status === statusFilter;
       
       const assignedCount = quiz.assignments?.length || 0;
-      const requiredCount = quiz.min_proctors;
+      // Calculate required proctors dynamically
+      const requiredCount = quiz.locations?.reduce((total, loc) => {
+        return total + calculateProctorsForCapacity(loc.capacity || 10);
+      }, 0) || quiz.min_proctors || 1;
+      
       const isIncomplete = assignedCount < requiredCount;
       const matchesIncomplete = showIncompleteOnly ? isIncomplete : true;
 
@@ -223,6 +251,7 @@ export default function QuizzesPage() {
     });
   }, [quizzes, searchQuery, statusFilter, showIncompleteOnly]);
 
+  // Group by Date for Display
   const groupedQuizzes = useMemo(() => {
     return Object.entries(
       filteredQuizzes.reduce((groups, quiz) => {
@@ -234,18 +263,45 @@ export default function QuizzesPage() {
     ).sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime());
   }, [filteredQuizzes]);
 
+  // Request Exchange State
+  const [requestingExchange, setRequestingExchange] = useState<{ id: string, name: string } | null>(null);
+  const [exchangeReason, setExchangeReason] = useState('');
+
+  const handleRequestExchange = async () => {
+    if (!requestingExchange) return;
+    try {
+      await exchangeApi.create({
+        assignment_id: requestingExchange.id,
+        reason: exchangeReason
+      });
+      toast.success('Exchange request sent! An admin will review it.');
+      setRequestingExchange(null);
+      setExchangeReason('');
+      await loadQuizzes(); // Refresh to show pending status if needed (optional UI update)
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  // Check if current user has an assignment in this location
+  const getUserAssignment = (assignments: any[]) => {
+    return assignments.find(a => a.users?.email === user?.email);
+  };
+
   if (loading) return <PageLoader />;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      <Toaster />
+      <Toaster position="top-center" />
+      {/* Header & Tools */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">Quizzes</h1>
           <p className="text-slate-400 text-sm">Manage assignments and schedules</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex  items-center gap-3">
+          {/* ... existing search and filters ... */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -253,7 +309,7 @@ export default function QuizzesPage() {
               placeholder="Search Quiz"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-32 placeholder-slate-500"
+              className="bg-slate-800  border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-32 placeholder-slate-500"
             />
           </div>
 
@@ -284,16 +340,6 @@ export default function QuizzesPage() {
             <AlertCircle className="w-3.5 h-3.5" />
             Incomplete Only
           </button>
-
-          {isAdmin && (
-             <Link 
-               href="/add-quiz"
-               className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
-             >
-               <Plus className="w-3.5 h-3.5" />
-               Add Quiz
-             </Link>
-          )}
         </div>
       </div>
 
@@ -318,8 +364,13 @@ export default function QuizzesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                 {dateQuizzes.map((quiz) => {
                   const assignedCount = quiz.assignments?.length || 0;
-                  const requiredCount = quiz.min_proctors;
-                  const progress = requiredCount > 0 ? Math.min((assignedCount / requiredCount) * 100, 100) : 100;
+                  
+                  // Calculate required proctors by summing requirements of all locations
+                  const requiredCount = quiz.locations?.reduce((total, loc) => {
+                    return total + calculateProctorsForCapacity(loc.capacity || 10);
+                  }, 0) || quiz.min_proctors || 1;
+
+                  const progress = Math.min((assignedCount / requiredCount) * 100, 100);
                   const isComplete = assignedCount >= requiredCount;
                   const isInsufficient = assignedCount < requiredCount;
                   const status = getQuizStatus(quiz);
@@ -328,12 +379,15 @@ export default function QuizzesPage() {
                   return (
                     <div 
                       key={quiz.id} 
-                      className={`relative rounded-xl overflow-hidden transition-all duration-200 group border ${
+                      className={`relative rounded-xl transition-all duration-200 group border ${
+                        activeMenuQuiz === quiz.id ? 'z-20 ring-1 ring-indigo-500/50' : 'z-0'
+                      } ${
                         isInsufficient 
                           ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/60 shadow-[0_0_15px_-5px_theme(colors.red.900)]' 
                           : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600'
                       }`}
                     >
+                      {/* Card Header */}
                       <div className="p-4 pb-0">
                         <div className="flex justify-between items-start mb-2">
                           <h3 className="font-bold text-white text-lg truncate pr-2 w-full" title={quiz.course_name}>
@@ -358,7 +412,10 @@ export default function QuizzesPage() {
                               <div className="relative">
                                 <button 
                                   onClick={(e) => {
+                                    e.preventDefault();
                                     e.stopPropagation();
+                                    e.nativeEvent.stopImmediatePropagation();
+                                    console.log('Toggling menu for quiz:', quiz.id, 'Current active:', activeMenuQuiz);
                                     setActiveMenuQuiz(activeMenuQuiz === quiz.id ? null : quiz.id);
                                   }}
                                   className="p-1 text-slate-500 hover:text-white rounded hover:bg-slate-700 transition-colors"
@@ -367,10 +424,11 @@ export default function QuizzesPage() {
                                 </button>
                                 
                                 {activeMenuQuiz === quiz.id && (
-                                  <div className="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
+                                  <div className="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
                                     <button 
                                       className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2"
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         setEditingQuiz(quiz);
                                         setActiveMenuQuiz(null);
                                       }}
@@ -379,7 +437,8 @@ export default function QuizzesPage() {
                                     </button>
                                     <button 
                                       className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         deleteQuiz(quiz.id);
                                         setActiveMenuQuiz(null);
                                       }}
@@ -406,6 +465,7 @@ export default function QuizzesPage() {
                           </div>
                         </div>
 
+                        {/* Proctor Progress */}
                         <div className="mt-2 mb-3 max-w-[40%]">
                           <div className="flex justify-between items-center text-xs mb-1.5">
                             <span className={`font-medium ${isInsufficient ? 'text-red-400' : 'text-slate-400'}`}>
@@ -426,12 +486,16 @@ export default function QuizzesPage() {
                         </div>
                       </div>
 
-                      <div className="bg-slate-900/20 px-3 pb-3 pt-3 border-t border-slate-700/20">
+                      {/* Always Visible Locations */}
+                      <div className="bg-slate-900/20 px-3 pb-3 pt-3 border-t border-slate-700/20 rounded-b-xl">
                           <div className="space-y-2">
                             {quiz.locations?.map((loc) => {
                               const locationAssignments = quiz.assignments?.filter(a => a.location_id === loc.id) || [];
                               const locRequired = calculateProctorsForCapacity(loc.capacity || 10);
                               const isLocFull = locationAssignments.length >= locRequired;
+                              
+                              // Check if current user is assigned here
+                              const myAssignment = getUserAssignment(locationAssignments);
 
                               return (
                                 <div key={loc.id} className="flex flex-col gap-1.5 p-2 rounded bg-slate-800/50 border border-slate-700/30">
@@ -453,9 +517,21 @@ export default function QuizzesPage() {
                                           <UserPlus className="w-3 h-3" />
                                         </button>
                                       )}
+                                      
+                                      {/* Request Exchange Button for Assigned TA */}
+                                      {myAssignment && !isAdmin && (
+                                        <button
+                                            onClick={() => setRequestingExchange({ id: myAssignment.id, name: quiz.course_name })}
+                                            className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded border border-amber-500/30 hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+                                        >
+                                            <AlertTriangle className="w-3 h-3" />
+                                            Request Exchange
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
 
+                                  {/* Assigned TAs List */}
                                   {locationAssignments.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 pl-1">
                                       {locationAssignments.map((a) => (
@@ -465,9 +541,30 @@ export default function QuizzesPage() {
                                             <button 
                                               className="text-slate-500 hover:text-red-400"
                                               onClick={() => {
-                                                if(confirm('Remove proctor?')) {
-                                                  assignmentApi.delete(a.id).then(loadQuizzes);
-                                                }
+                                                toast((t) => (
+                                                  <div className="flex flex-col gap-2">
+                                                    <p className="font-medium text-slate-800 dark:text-slate-500">
+                                                      Remove proctor {a.users?.name}?
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                      <button
+                                                        onClick={() => {
+                                                          toast.dismiss(t.id);
+                                                          assignmentApi.delete(a.id).then(loadQuizzes);
+                                                        }}
+                                                        className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition-colors"
+                                                      >
+                                                        Remove
+                                                      </button>
+                                                      <button
+                                                        onClick={() => toast.dismiss(t.id)}
+                                                        className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded text-sm transition-colors"
+                                                      >
+                                                        Cancel
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                ), { duration: 5000, id: `remove-proctor-${a.id}` });
                                               }}
                                             >
                                               <X className="w-2.5 h-2.5" />
@@ -491,6 +588,7 @@ export default function QuizzesPage() {
         </div>
       )}
 
+      {/* Assignment Modal */}
       {assigningQuiz && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-700">
@@ -511,7 +609,7 @@ export default function QuizzesPage() {
                     <p className="text-sm">Analyzing schedules...</p>
                   </div>
                ) : (
-                  suggestions.map((ta) => (
+                  suggestions.map((ta, index) => (
                     <button
                       key={ta.id}
                       onClick={() => assignProctor(ta.id)}
@@ -543,6 +641,7 @@ export default function QuizzesPage() {
         </div>
       )}
 
+      {/* Edit Quiz Modal */}
       {editingQuiz && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-slate-800 scale-80 rounded-xl max-w-2xl w-full max-h-[110vh] overflow-y-auto shadow-2xl border border-slate-700">
@@ -560,6 +659,55 @@ export default function QuizzesPage() {
                />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Request Exchange Modal */}
+      {requestingExchange && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                <div className="flex items-center gap-3 mb-4 text-amber-500">
+                    <AlertTriangle className="w-6 h-6" />
+                    <h3 className="text-lg font-bold">Request Shift Exchange</h3>
+                </div>
+                
+                <p className="text-slate-300 text-sm mb-4 leading-relaxed">
+                    You are requesting to be replaced for <span className="text-white font-medium">{requestingExchange.name}</span>.
+                </p>
+
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-amber-200 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>Warning: Proceeding with this exchange will add <strong>+0.5 points</strong> to your target workload penalty.</span>
+                    </p>
+                </div>
+
+                <div className="mb-4">
+                    <label className="text-xs text-slate-400 mb-1 block">Reason (Optional)</label>
+                    <textarea 
+                        className="w-full bg-slate-800 border-slate-700 rounded-md text-sm text-white p-2 focus:ring-1 focus:ring-amber-500 outline-none"
+                        rows={2}
+                        placeholder="Why do you need to exchange?"
+                        value={exchangeReason}
+                        onChange={(e) => setExchangeReason(e.target.value)}
+                    />
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setRequestingExchange(null)}
+                        className="flex-1 px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors text-sm"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleRequestExchange}
+                        className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors text-sm font-medium"
+                    >
+                        Confirm Request
+                    </button>
+                </div>
+            </div>
         </div>
       )}
     </div>

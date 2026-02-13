@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabaseAdmin, getUserProfileFromRequest } from '@/lib/supabase-admin';
 import { AssignmentService } from '@/services/AssignmentService';
 
 export async function GET(req: Request, { params }: { params: Promise<{ quizId: string }> }) {
     try {
         const { quizId } = await params;
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Verify user (could be middleware, but doing inline for now)
-        const token = authHeader.split(' ')[1];
-        const { error: authError } = await supabaseAdmin.auth.getUser(token);
-        if (authError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const user = await getUserProfileFromRequest(req);
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         // Get quiz first
         const { data: quiz, error: quizError } = await supabaseAdmin

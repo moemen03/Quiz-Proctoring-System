@@ -17,8 +17,10 @@ import {
   User as UserIcon,
   AlertTriangle,
   Copy,
-  Check
+  Clock
 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { useRouter } from 'next/navigation';
 import { userApi, excuseApi, scheduleApi, User, Excuse, ScheduleSlot, CreateExcuseInput } from '@/lib/api-client';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
@@ -32,8 +34,10 @@ const EXCUSE_TYPES = [
   { value: 'personal', label: 'Personal', icon: UserIcon, color: 'text-slate-400' },
 ] as const;
 
-export default function ManageProctorsPage() {
-  const { isAdmin, loading: authLoading } = useAuth();
+export default function ManageTAsPage() {
+  const { user, loading: authLoading, isAdmin } = useAuth();
+  const router = useRouter();
+  
   const [users, setUsers] = useState<User[]>([]);
   const [excuses, setExcuses] = useState<Excuse[]>([]);
   const [schedules, setSchedules] = useState<ScheduleSlot[]>([]);
@@ -49,10 +53,15 @@ export default function ManageProctorsPage() {
   });
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!isAdmin) return;
-    loadData();
-  }, [authLoading, isAdmin]);
+    if (!authLoading) {
+      if (!isAdmin) {
+        toast.error('Access denied. Admins only.');
+        router.push('/dashboard');
+        return;
+      }
+      loadData();
+    }
+  }, [authLoading, isAdmin, router]);
 
   const loadData = async () => {
     try {
@@ -66,6 +75,7 @@ export default function ManageProctorsPage() {
       setSchedules(schedulesData);
     } catch (error) {
       console.error('Error loading data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -115,9 +125,42 @@ export default function ManageProctorsPage() {
     );
   };
 
-  const getTotalReduction = (taId: string) => {
-    const active = getActiveExcuses(taId);
-    return active.length; // Returns count of active excuses
+  const handleDeleteUser = (userId: string, userName: string) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 min-w-[240px]">
+        <div>
+          <p className="font-semibold text-slate-900">Delete {userName}?</p>
+          <p className="text-sm text-slate-500">This action cannot be undone.</p>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await userApi.delete(userId);
+                await loadData();
+                toast.success('User deleted successfully');
+              } catch (error) {
+                toast.error((error as Error).message);
+              }
+            }}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-sm shadow-red-500/30"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 5000,
+      position: 'top-center',
+      className: '!bg-white !p-4 !rounded-xl !shadow-xl !border !border-slate-100',
+    });
   };
 
   const tas = users.filter(u => u.role === 'ta');
@@ -125,27 +168,15 @@ export default function ManageProctorsPage() {
 
   if (authLoading || loading) return <PageLoader />;
 
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
-          <AlertTriangle className="w-8 h-8 text-red-500" />
-        </div>
-        <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
-        <p className="text-slate-400">You do not have permission to view this page.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Users className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">Manage Proctors</h1>
+            <h1 className="text-3xl font-bold text-white">Manage TAs</h1>
             <p className="text-slate-400">View TAs, administrators, and workload excuses</p>
           </div>
         </div>
@@ -161,13 +192,10 @@ export default function ManageProctorsPage() {
           <div className="space-y-3">
             {tas.map((ta) => {
               const activeExcuses = getActiveExcuses(ta.id);
-              const totalReduction = getTotalReduction(ta.id);
               const isExpanded = expandedTa === ta.id;
               
-              
-             
               return (
-                <div key={ta.id} className="bg-slate-800 rounded-xl border border-slate-700 p-4 transition-all hover:border-slate-600">
+                <div key={ta.id} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 hover:border-slate-600 transition-colors">
                     <div 
                       className="flex items-center justify-between cursor-pointer"
                       onClick={() => setExpandedTa(isExpanded ? null : ta.id)}
@@ -200,6 +228,14 @@ export default function ManageProctorsPage() {
                               <Copy className="w-3 h-3 text-slate-500" />
                             </button>
                           </div>
+                          {ta.last_schedule_update && (
+                            <div className="flex items-center gap-1.5 mt-1 text-slate-500">
+                              <Clock className="w-3 h-3" />
+                              <p className="text-xs">
+                                Updated {formatDistanceToNow(new Date(ta.last_schedule_update), { addSuffix: true })}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -210,6 +246,18 @@ export default function ManageProctorsPage() {
                           </span>
                         )}
                         <span className="text-xs text-slate-500">{ta.major || 'CS'}</span>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteUser(ta.id, ta.name);
+                          }}
+                          className="p-1 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300 transition-colors"
+                          title="Delete TA"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+
                         {isExpanded ? (
                           <ChevronUp className="w-5 h-5 text-slate-400" />
                         ) : (
@@ -222,16 +270,16 @@ export default function ManageProctorsPage() {
                     <div className="mt-4 pt-4 border-t border-slate-700">
                       {/* Workload Info */}
                       <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                        <div className="bg-slate-800/50 p-3 rounded-lg">
                           <p className="text-xs text-slate-400 mb-1">Current Workload</p>
                           <p className="text-lg font-semibold text-white">
                             {(ta.total_workload_points || 0).toFixed(1)}
                           </p>
                         </div>
-                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                        <div className="bg-slate-800/50 p-3 rounded-lg">
                           <p className="text-xs text-slate-400 mb-1">Target</p>
                           <p className="text-lg font-semibold text-white">
-                            {((ta.target_workload || 10) ).toFixed(1)}
+                            {((ta.target_workload || 14) ).toFixed(1)}
                           </p>
                         </div>
                       </div>
@@ -261,13 +309,13 @@ export default function ManageProctorsPage() {
                               return (
                                 <div 
                                   key={excuse.id}
-                                  className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-700/50"
+                                  className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50"
                                 >
                                   <div className="flex items-center gap-2">
                                     <Icon className={`w-4 h-4 ${typeInfo?.color || 'text-slate-400'}`} />
                                     <div>
-                                      <p className="text-xs font-medium text-white">{typeInfo?.label}</p>
-                                      <p className="text-[10px] text-slate-400">
+                                      <p className="text-sm text-white">{typeInfo?.label}</p>
+                                      <p className="text-xs text-slate-400">
                                         {excuse.start_date}
                                         {excuse.end_date ? ` to ${excuse.end_date}` : ' (ongoing)'}
                                       </p>
@@ -292,7 +340,6 @@ export default function ManageProctorsPage() {
                   )}
                 </div>
               );
-              
             })}
             {tas.length === 0 && (
               <p className="text-slate-400 text-center py-8">No TAs added yet</p>
@@ -310,7 +357,7 @@ export default function ManageProctorsPage() {
             {admins.map((admin) => (
               <div
                 key={admin.id}
-                className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center justify-between"
+                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 flex items-center justify-between"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
@@ -319,7 +366,7 @@ export default function ManageProctorsPage() {
                   <div>
                     <p className="font-medium text-white text-sm">{admin.name}</p>
                     <div className="flex items-center gap-2 group/admin-email">
-                      <p className="text-sm text-slate-400 text-[10px]">{admin.email}</p>
+                      <p className="text-slate-400 text-[10px]">{admin.email}</p>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -336,7 +383,7 @@ export default function ManageProctorsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 mr-2">{admin.major || 'CS'}</span>
-                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">Admin</span>
+                  <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded textxs font-medium border border-indigo-500/30">Admin</span>
                 </div>
               </div>
             ))}
@@ -349,8 +396,8 @@ export default function ManageProctorsPage() {
 
       {/* Add Excuse Modal */}
       {showExcuseForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-700">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">Add Workload Excuse</h2>
               <button 
@@ -365,7 +412,7 @@ export default function ManageProctorsPage() {
             </p>
             <form onSubmit={handleExcuseSubmit} className="space-y-4">
               <div>
-                <label className="label text-xs">Excuse Type</label>
+                <label className="text-sm font-medium text-slate-300 block mb-2">Excuse Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   {EXCUSE_TYPES.map(type => {
                     const Icon = type.icon;
@@ -374,10 +421,10 @@ export default function ManageProctorsPage() {
                         key={type.value}
                         type="button"
                         onClick={() => setExcuseFormData({ ...excuseFormData, excuse_type: type.value })}
-                        className={`p-3 rounded-lg flex items-center gap-2 transition-colors border ${
+                        className={`p-3 rounded-lg flex items-center gap-2 transition-colors ${
                           excuseFormData.excuse_type === type.value
-                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                            : 'bg-slate-700/50 border-transparent hover:bg-slate-700 text-slate-300'
+                            ? 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
+                            : 'bg-slate-700/50 hover:bg-slate-700 text-slate-300'
                         }`}
                       >
                         <Icon className={`w-4 h-4 ${type.color}`} />
@@ -388,9 +435,9 @@ export default function ManageProctorsPage() {
                 </div>
               </div>
               <div>
-                <label className="label text-xs">Description (optional)</label>
+                <label className="text-sm font-medium text-slate-300 block mb-2">Description (optional)</label>
                 <textarea
-                  className="input"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   placeholder="Additional details..."
                   rows={2}
                   value={excuseFormData.description}
@@ -399,38 +446,38 @@ export default function ManageProctorsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label flex items-center gap-1 text-xs">
+                  <label className="text-sm font-medium text-slate-300 block mb-2 flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     Start Date
                   </label>
                   <input
                     type="date"
-                    className="input"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     value={excuseFormData.start_date}
                     onChange={(e) => setExcuseFormData({ ...excuseFormData, start_date: e.target.value })}
                     required
                   />
                 </div>
                 <div>
-                  <label className="label flex items-center gap-1 text-xs">
+                  <label className="text-sm font-medium text-slate-300 block mb-2 flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     End Date
                   </label>
                   <input
                     type="date"
-                    className="input"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     placeholder="Leave empty for ongoing"
                     value={excuseFormData.end_date}
                     onChange={(e) => setExcuseFormData({ ...excuseFormData, end_date: e.target.value })}
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">Leave empty for ongoing</p>
+                  <p className="text-xs text-slate-500 mt-1">Leave empty for ongoing</p>
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowExcuseForm(null)} className="btn btn-secondary flex-1">
+                <button type="button" onClick={() => setShowExcuseForm(null)} className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary flex-1">
+                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
                   Add Excuse
                 </button>
               </div>

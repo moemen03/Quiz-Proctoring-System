@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
-
-async function getUser(req: Request) {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
-    return user;
-}
+import { supabaseAdmin, getUserProfileFromRequest } from '@/lib/supabase-admin';
 
 export async function GET(req: Request) {
     try {
-        const user = await getUser(req);
+        const user = await getUserProfileFromRequest(req);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { data, error } = await supabaseAdmin
@@ -32,7 +24,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const user = await getUser(req);
+        const user = await getUserProfileFromRequest(req);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         // Check if admin? Or logic to allow assigning

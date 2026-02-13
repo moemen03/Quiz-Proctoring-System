@@ -14,11 +14,11 @@ interface QuizFormProps {
 
 // Calculate required proctors based on capacity
 const calculateProctorsForCapacity = (capacity: number): number => {
-  if (capacity <= 10) return 1;
-  if (capacity <= 30) return 2;
-  if (capacity <= 59) return 3;
-  if (capacity <= 100) return 4;
-  return Math.ceil(capacity / 25); // For larger capacities
+  if (capacity <= 25) return 2;
+  if (capacity <= 40) return 3;
+  if (capacity <= 65) return 4;
+  if (capacity <= 100) return 5;
+  return Math.ceil(capacity / 20); // For larger capacities
 };
 
 export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
@@ -279,18 +279,22 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
               {daysInMonth.map((day) => {
                 const isSelected = formData.date === format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
+                const isFriday = getDay(day) === 5;
                 
                 return (
                   <button
                     type="button"
                     key={day.toString()}
+                    disabled={isFriday}
                     onClick={() => setFormData({ ...formData, date: format(day, "yyyy-MM-dd") })}
                     className={`
                       p-2 text-sm rounded-lg transition-colors
                       ${!isCurrentMonth ? "text-slate-300 dark:text-slate-600" : ""}
                       ${isSelected
                         ? "bg-indigo-500 text-white font-bold"
-                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        : isFriday
+                          ? "text-red-300 dark:text-red-900/50 bg-red-50 dark:bg-red-900/10 cursor-not-allowed opacity-60"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                       }
                       ${isToday(day) && !isSelected ? "ring-2 ring-indigo-500/20" : ""}
                     `}
@@ -401,7 +405,7 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
                 {location.capacity ? (
                   <>Based on capacity of {location.capacity}: {location.requiredProctors} proctor{location.requiredProctors !== 1 ? 's' : ''} needed</>
                 ) : (
-                  <>Enter capacity to auto-calculate proctors (1-10: 1, 11-30: 2, 31-59: 3, 60-100: 4)</>
+                  <>Enter capacity to auto-calculate proctors (≤25: 2, ≤40: 3, ≤65: 4, ≤100: 5)</>
                 )}
               </p>
             </div>

@@ -1,29 +1,11 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
-
-async function getUser(req: Request) {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.split(' ')[1];
-
-    // Auth - simple verification for now, optimizing by not fetching profile if not needed for role?
-    // Actually we need profile for role
-    const { data: { user: authUser }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !authUser) return null;
-
-    const { data: userProfile } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .eq('auth_id', authUser.id)
-        .single();
-
-    return userProfile;
-}
+import { supabaseAdmin, getUserProfileFromRequest } from '@/lib/supabase-admin';
+import { AssignmentService } from '@/services/AssignmentService';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
-        const user = await getUser(req);
+        const user = await getUserProfileFromRequest(req);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const currentUserMajor = user.major;
@@ -56,7 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
-        const user = await getUser(req);
+        const user = await getUserProfileFromRequest(req);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         if (user.role !== 'admin') {
@@ -92,6 +74,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             await supabaseAdmin
                 .from('locations')
                 .insert(locationsWithQuizId);
+
+            // Auto-assign proctors for the new locations
+            try {
+                await AssignmentService.autoAssign(id);
+                // Fetch updated quiz with new assignments to return
+                const { data: updatedQuiz } = await supabaseAdmin
+                    .from('quizzes')
+                    .select(`
+                        *,
+                        locations (*),
+                        assignments (
+                            *,
+                            users (*)
+                        )
+                    `)
+                    .eq('id', id)
+                    .single();
+
+                if (updatedQuiz) {
+                    return NextResponse.json(updatedQuiz);
+                }
+            } catch (assignError) {
+                console.error('Auto-assignment failed during update:', assignError);
+            }
         }
 
         return NextResponse.json(data);
@@ -103,7 +109,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
-        const user = await getUser(req);
+        const user = await getUserProfileFromRequest(req);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         if (user.role !== 'admin') {

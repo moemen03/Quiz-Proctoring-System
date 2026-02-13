@@ -62,6 +62,7 @@ export interface User {
     day_off?: string | null;
     total_workload_points?: number;
     target_workload?: number;
+    last_schedule_update?: string;
 }
 
 export interface Quiz {
@@ -159,6 +160,7 @@ export const userApi = {
     updateDayOff: (day_off: string) =>
         fetchApi<{ day_off: string }>('/users/me/day-off', { method: 'PUT', body: JSON.stringify({ day_off }) }),
     getSummary: (id: string) => fetchApi<ProctorSummary>(`/users/${id}/summary`),
+    delete: (id: string) => fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
 };
 
 export interface Excuse {
@@ -195,4 +197,52 @@ export const excuseApi = {
         fetchApi<Excuse>('/excuses', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) =>
         fetchApi<void>(`/excuses/${id}`, { method: 'DELETE' }),
+};
+
+export interface ExchangeRequest {
+    id: string;
+    assignment_id: string;
+    original_ta_id: string;
+    new_ta_id?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    reason?: string;
+    created_at: string;
+    assignments?: Assignment; // Joined data
+    original_ta?: User;      // Joined data
+}
+
+export const exchangeApi = {
+    getAll: (status?: string) => fetchApi<ExchangeRequest[]>(`/exchange-requests${status ? `?status=${status}` : ''}`),
+    create: (data: { assignment_id: string, reason?: string }) =>
+        fetchApi<ExchangeRequest>('/exchange-requests', { method: 'POST', body: JSON.stringify(data) }),
+    approve: (requestId: string, new_ta_id: string) =>
+        fetchApi<void>(`/exchange-requests/${requestId}/approve`, { method: 'POST', body: JSON.stringify({ new_ta_id }) }),
+};
+
+export interface Notification {
+    id: string;
+    type: string;
+    message: string;
+    read: boolean;
+    created_at: string;
+    ta_id?: string;
+}
+
+export const notificationApi = {
+    getAll: (unreadOnly = true) => {
+        const query = unreadOnly ? '?unread=true' : '';
+        return fetchApi<Notification[]>(`/notifications${query}`);
+    },
+    markRead: (id: string) => {
+        if (!id || id === 'undefined' || id.includes('undefined')) {
+            console.warn('Blocked invalid markRead API call:', id);
+            return Promise.resolve();
+        }
+        return fetchApi<void>(`/notifications/${id}`, { method: 'PUT' });
+    },
+    markAllRead: (category?: 'schedule' | 'system') =>
+        fetchApi<void>('/notifications/mark-all-read', {
+            method: 'PUT',
+            body: JSON.stringify({ category })
+        }),
 };
