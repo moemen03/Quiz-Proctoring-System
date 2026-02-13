@@ -5,6 +5,7 @@ import { BarChart3, User, Calendar, TrendingUp, Search } from 'lucide-react';
 import { userApi, User as TaUser, ProctorSummary, exchangeApi } from '@/lib/api-client';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
+import { AddToCalendarButton } from '@/components/AddToCalendarButton';
 
 export default function ProctorSummaryPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -124,7 +125,7 @@ export default function ProctorSummaryPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-2 max-h-[240px] md:max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                 {filteredTas.length === 0 ? (
                   <p className="text-slate-400 text-sm italic py-4 text-center">
                     {searchTerm ? 'No matching TAs found' : 'No TAs found'}
@@ -164,22 +165,22 @@ export default function ProctorSummaryPage() {
           ) : summary ? (
             <div className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="col-span-2 sm:col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
                   <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center mx-auto mb-3">
                     <Calendar className="w-6 h-6 text-indigo-400" />
                   </div>
                   <p className="text-3xl font-bold text-white">{summary.total_assignments}</p>
-                  <p className="text-sm text-slate-400">Total</p>
+                  <p className="text-sm text-slate-400">Total Assignments</p>
                 </div>
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
+                <div className="col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
                   <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
                     <TrendingUp className="w-6 h-6 text-amber-400" />
                   </div>
                   <p className="text-3xl font-bold text-white">{summary.upcoming_assignments}</p>
                   <p className="text-sm text-slate-400">Upcoming</p>
                 </div>
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
+                <div className="col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
                   <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
                     <BarChart3 className="w-6 h-6 text-emerald-400" />
                   </div>
@@ -196,31 +197,42 @@ export default function ProctorSummaryPage() {
                 ) : (
                   <div className="space-y-3">
                     {summary.assignments.map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-slate-900/50 border border-slate-700/50"
-                      >
-                        <div>
-                          <p className="font-medium text-white">
-                            {assignment.quizzes?.course_name}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                            <span>
-                              {assignment.quizzes?.date && new Date(assignment.quizzes.date).toLocaleDateString()}
-                            </span>
-                            <span>{assignment.quizzes?.start_time}</span>
-                            <span>{assignment.locations?.name}</span>
+                        <div
+                          key={assignment.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-slate-900/50 border border-slate-700/50 gap-3 sm:gap-0"
+                        >
+                          <div>
+                            <p className="font-medium text-white">
+                              {assignment.quizzes?.course_name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-slate-400 mt-1">
+                              <span>
+                                {assignment.quizzes?.date && new Date(assignment.quizzes.date).toLocaleDateString()}
+                              </span>
+                              <span>{assignment.quizzes?.start_time}</span>
+                              <span className="bg-slate-800 px-2 py-0.5 rounded text-xs">{assignment.locations?.name}</span>
+                            </div>
                           </div>
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full border ${
-                          assignment.status === 'completed' 
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                            : assignment.status === 'confirmed'
-                            ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
-                            : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                        }`}>
-                          {assignment.status}
-                        </span>
+                          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                            <span className={`text-xs px-2 py-1 rounded-full border ${
+                              assignment.status === 'completed' 
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                                : assignment.status === 'confirmed'
+                                ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
+                                : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                            }`}>
+                              {assignment.status}
+                            </span>
+                          </div>
+                        {/* Add to Calendar Button */}
+                        {/* {assignment.quizzes && (
+                          <div className="ml-2">
+                             <AddToCalendarButton 
+                               quiz={assignment.quizzes} 
+                               locationName={assignment.locations?.name} 
+                             />
+                          </div>
+                        )} */}
                       </div>
                     ))}
                   </div>
@@ -235,31 +247,33 @@ export default function ProctorSummaryPage() {
                  ) : (
                     <div className="space-y-3">
                       {requests.map((req) => (
-                        <div key={req.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                        <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-slate-900/50 border border-slate-700/50 gap-3 sm:gap-0">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className={`w-2 h-2 rounded-full ${
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${
                                     req.status === 'approved' ? 'bg-emerald-500' :
                                     req.status === 'rejected' ? 'bg-red-500' :
                                     'bg-amber-500'
                                 }`} />
-                                <span className="font-medium text-white">
+                                <span className="font-medium text-white truncate max-w-[200px] sm:max-w-none">
                                     {req.assignments?.quizzes?.course_name}
                                 </span>
                             </div>
-                            <div className="text-sm text-slate-400 flex items-center gap-3">
+                            <div className="text-sm text-slate-400 flex flex-wrap items-center gap-3">
                                 <span>{req.assignments?.quizzes?.date}</span>
                                 <span>{req.assignments?.quizzes?.start_time}</span>
                             </div>
-                            {req.reason && <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>}
+                            {req.reason && <p className="text-xs text-slate-500 mt-1 italic line-clamp-2">"{req.reason}"</p>}
                           </div>
-                          <span className={`text-xs px-2 py-1 rounded-full border border-opacity-30 ${
-                              req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500' :
-                              req.status === 'rejected' ? 'bg-red-500/20 text-red-400 border-red-500' :
-                              'bg-amber-500/20 text-amber-400 border-amber-500'
-                          }`}>
-                              {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                          </span>
+                          <div className="flex justify-end w-full sm:w-auto">
+                            <span className={`text-xs px-2 py-1 rounded-full border border-opacity-30 ${
+                                req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500' :
+                                req.status === 'rejected' ? 'bg-red-500/20 text-red-400 border-red-500' :
+                                'bg-amber-500/20 text-amber-400 border-amber-500'
+                            }`}>
+                                {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>

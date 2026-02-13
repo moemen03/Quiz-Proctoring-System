@@ -16,8 +16,8 @@ export default function AddQuizPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-4 mb-8 text-center md:text-left">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
           <CalendarPlus className="w-7 h-7 text-white" />
         </div>
         <div>

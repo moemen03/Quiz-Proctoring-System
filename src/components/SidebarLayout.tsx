@@ -10,12 +10,12 @@ import {
   Clock, 
   Users, 
   BarChart3,
-  GraduationCap,
-  LogOut,
   Shield,
+  LogOut,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 
 const baseNavigation = [
@@ -57,12 +57,12 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
   console.log(filteredNav);
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
+    <div className="min-h-screen flex bg-slate-900">
+      {/* Sidebar - Desktop Only */}
       <aside 
-        className={`${
+        className={`hidden md:flex ${
           isCollapsed ? 'w-20' : 'w-64'
-        } glass fixed h-full flex flex-col transition-all duration-300 ease-in-out z-30`}
+        } glass fixed h-full flex-col transition-all duration-300 ease-in-out z-30`}
       >
         {/* Toggle Button */}
         <button
@@ -74,8 +74,14 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
         <div className={`p-4 flex-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
           <div className={`flex items-center gap-3 mb-8 ${isCollapsed ? 'justify-center' : ''}`}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
-              <GraduationCap className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 overflow-hidden">
+              <Image 
+                src="/logo.png" 
+                alt="Logo" 
+                width={40} 
+                height={40} 
+                className="w-full h-full object-cover"
+              />
             </div>
             {!isCollapsed && (
               <div className="overflow-hidden transition-all duration-300">
@@ -145,9 +151,35 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className={`flex-1 transition-all duration-300 ease-in-out p-8 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
+      <main className={`flex-1 transition-all duration-300 ease-in-out p-4 md:p-8 ${isCollapsed ? 'md:ml-20' : 'md:ml-64'} mb-20 md:mb-0`}>
         {children}
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed bottom-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-700 z-50 flex md:hidden justify-around items-center px-2 py-2 pb-safe">
+        {filteredNav.map((item) => {
+          if (item.href === '/add-quiz') return null; // Hide Add Quiz on mobile
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+                isActive ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <item.icon className={`w-5 h-5 ${isActive ? 'fill-current/20' : ''}`} />
+              <span className="text-[10px] font-medium max-w-[60px] truncate text-center leading-tight">
+                {item.name}
+              </span>
+            </Link>
+          );
+        })}
+        {/* Mobile Logout (Optional, or put in profile) - For now, maybe just the nav items is enough space. 
+            If valid user, maybe shows visual indicator? 
+            Let's keep it simple for now as requested: "minimized , icons with label"
+        */}
+      </nav>
     </div>
   );
 }

@@ -18,13 +18,17 @@ import {
   Loader,
   Copy,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Flag,
+  Plus
 } from 'lucide-react';
+import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
 import { quizApi, assignmentApi, exchangeApi, Quiz, TASuggestion } from '@/lib/api-client';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
 import { QuizForm } from '@/components/QuizForm';
+import { AddToCalendarButton } from '@/components/AddToCalendarButton';
 
 // Calculate required proctors based on capacity
 const calculateProctorsForCapacity = (capacity: number): number => {
@@ -296,29 +300,31 @@ export default function QuizzesPage() {
       {/* Header & Tools */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Quizzes</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">Quizzes</h1>
+          </div>
           <p className="text-slate-400 text-sm">Manage assignments and schedules</p>
         </div>
 
-        <div className="flex  items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* ... existing search and filters ... */}
-          <div className="relative">
+          <div className="relative grow sm:grow-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text"
               placeholder="Search Quiz"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-800  border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-32 placeholder-slate-500"
+              className="bg-slate-800  border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-32 placeholder-slate-500"
             />
           </div>
 
-          <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+          <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700 overflow-x-auto max-w-full">
             {['all', 'upcoming', 'started', 'finished'].map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
                   statusFilter === status 
                     ? 'bg-slate-700 text-white shadow-sm' 
                     : 'text-slate-400 hover:text-slate-300'
@@ -331,7 +337,7 @@ export default function QuizzesPage() {
 
           <button
             onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
               showIncompleteOnly 
                 ? 'bg-red-500/10 border-red-500/30 text-red-300' 
                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
@@ -340,6 +346,16 @@ export default function QuizzesPage() {
             <AlertCircle className="w-3.5 h-3.5" />
             Incomplete Only
           </button>
+
+          {isAdmin && (
+            <Link 
+              href="/add-quiz" 
+              className="md:hidden flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:scale-95 transition-all text-xs font-medium whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Quiz Add
+            </Link>
+          )}
         </div>
       </div>
 
@@ -396,6 +412,30 @@ export default function QuizzesPage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <span className={badge.className}>{badge.label}</span>
                             
+                            {isAdmin && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    const res = await fetch(`/api/quizzes/${quiz.id}/notify`, { method: 'POST' });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                      toast.success(`Notified ${data.count} proctors via email`);
+                                    } else {
+                                      toast.error(data.error || 'Failed to send notifications');
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                    toast.error('Error sending notifications');
+                                  }
+                                }}
+                                className="p-1 rounded text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
+                                title="Notify Proctors via Email"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-bell"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                              </button>
+                            )}
+
                             <button
                               onClick={() => handleCopyQuiz(quiz)}
                               className={`p-1 rounded transition-colors ${
@@ -520,58 +560,79 @@ export default function QuizzesPage() {
                                       
                                       {/* Request Exchange Button for Assigned TA */}
                                       {myAssignment && !isAdmin && (
-                                        <button
-                                            onClick={() => setRequestingExchange({ id: myAssignment.id, name: quiz.course_name })}
-                                            className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded border border-amber-500/30 hover:bg-amber-500/20 transition-colors flex items-center gap-1"
-                                        >
-                                            <AlertTriangle className="w-3 h-3" />
-                                            Request Exchange
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <AddToCalendarButton 
+                                              quiz={quiz} 
+                                              locationName={loc.name} 
+                                              isHeadProctor={locationAssignments.length > 0 && locationAssignments[0].id === myAssignment.id}
+                                            />
+                                            <button
+                                                onClick={() => setRequestingExchange({ id: myAssignment.id, name: quiz.course_name })}
+                                                className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded border border-amber-500/30 hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+                                            >
+                                                <AlertTriangle className="w-3 h-3" />
+                                                Request Exchange
+                                            </button>
+                                        </div>
                                       )}
                                     </div>
                                   </div>
 
                                   {/* Assigned TAs List */}
                                   {locationAssignments.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 pl-1">
-                                      {locationAssignments.map((a) => (
-                                        <div key={a.id} className="flex items-center gap-1 bg-slate-700/50 px-1.5 py-0.5 rounded text-[14px] text-slate-300 border border-slate-600/30">
-                                          <span className="truncate max-w-[200px]">{a.users?.name.split(' ').slice(0, 2).join(' ')}</span>
-                                          {isAdmin && (
-                                            <button 
-                                              className="text-slate-500 hover:text-red-400"
-                                              onClick={() => {
-                                                toast((t) => (
-                                                  <div className="flex flex-col gap-2">
-                                                    <p className="font-medium text-slate-800 dark:text-slate-500">
-                                                      Remove proctor {a.users?.name}?
-                                                    </p>
-                                                    <div className="flex gap-2">
-                                                      <button
-                                                        onClick={() => {
-                                                          toast.dismiss(t.id);
-                                                          assignmentApi.delete(a.id).then(loadQuizzes);
-                                                        }}
-                                                        className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition-colors"
-                                                      >
-                                                        Remove
-                                                      </button>
-                                                      <button
-                                                        onClick={() => toast.dismiss(t.id)}
-                                                        className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded text-sm transition-colors"
-                                                      >
-                                                        Cancel
-                                                      </button>
+                                    <div className="flex flex-wrap gap-1.5 pl-1 mt-3">
+                                      {locationAssignments.map((a, index) => {
+                                        const isFirst = index === 0;
+                                        const isMe = a.users?.email === user?.email;
+                                        
+                                        return (
+                                          <div 
+                                            key={a.id} 
+                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[14px] border transition-colors ${
+                                              isFirst 
+                                                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' 
+                                                : 'bg-slate-700/50 text-slate-300 border-slate-600/30'
+                                            } ${isMe ? 'ring-1 ring-amber-500/50' : ''}`}
+                                            title={isFirst ? "Head Proctor" : "Proctor"}
+                                          >
+                                            {isFirst && <Flag className={`w-3 h-3 ${isMe ? 'text-amber-400' : 'text-indigo-400'}`} fill={isMe ? "currentColor" : "none"} />}
+                                            <span className="truncate max-w-[200px]">{a.users?.name.split(' ').slice(0, 2).join(' ')}</span>
+                                            {isAdmin && (
+                                              <button 
+                                                className={`hover:text-red-400 ${isFirst ? 'text-indigo-400/70' : 'text-slate-500'}`}
+                                                onClick={() => {
+                                                  toast((t) => (
+                                                    <div className="flex flex-col gap-2">
+                                                      <p className="font-medium text-slate-800 dark:text-slate-500">
+                                                        Remove proctor {a.users?.name}?
+                                                      </p>
+                                                      <div className="flex gap-2">
+                                                        <button
+                                                          onClick={() => {
+                                                            toast.dismiss(t.id);
+                                                            assignmentApi.delete(a.id).then(loadQuizzes);
+                                                          }}
+                                                          className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition-colors"
+                                                        >
+                                                          Remove
+                                                        </button>
+                                                        <button
+                                                          onClick={() => toast.dismiss(t.id)}
+                                                          className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded text-sm transition-colors"
+                                                        >
+                                                          Cancel
+                                                        </button>
+                                                      </div>
                                                     </div>
-                                                  </div>
-                                                ), { duration: 5000, id: `remove-proctor-${a.id}` });
-                                              }}
-                                            >
-                                              <X className="w-2.5 h-2.5" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ))}
+                                                  ), { duration: 5000, id: `remove-proctor-${a.id}` });
+                                                }}
+                                              >
+                                                <X className="w-2.5 h-2.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
@@ -644,7 +705,7 @@ export default function QuizzesPage() {
       {/* Edit Quiz Modal */}
       {editingQuiz && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-slate-800 scale-80 rounded-xl max-w-2xl w-full max-h-[110vh] overflow-y-auto shadow-2xl border border-slate-700">
+          <div className="bg-slate-800 scale-80 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-slate-700 custom-scrollbar">
              <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0 z-10">
               <h2 className="text-lg font-bold text-white">Edit Quiz</h2>
               <button onClick={() => setEditingQuiz(null)} className="text-slate-400 hover:text-white">

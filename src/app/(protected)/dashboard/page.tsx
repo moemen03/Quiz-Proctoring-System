@@ -134,15 +134,15 @@ export default function DashboardPage() {
     if (authLoading) return <PageLoader />;
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
             <Toaster position="top-center" />
             
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+            <div className="mb-6 md:mb-8">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
                 <p className="text-slate-400">Overview and pending actions</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* System Alerts Panel */}
                 <div className={`border rounded-xl overflow-hidden flex flex-col ${
                     notificationError ? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'
@@ -162,7 +162,7 @@ export default function DashboardPage() {
                         {!notificationError && notifications.some(n => n.type !== 'schedule_change') && (
                             <button 
                                 onClick={() => handleMarkAllRead('system')}
-                                className="text-xs text-amber-400 hover:text-amber-300 underline"
+                                className="text-xs text-amber-400 hover:text-amber-300 underline whitespace-nowrap ml-2"
                             >
                                 Mark all as read
                             </button>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
                                             </div>
                                             <button
                                                 onClick={() => processMarkRead(notif.id)}
-                                                className="p-1 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded"
+                                                className="p-1 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded shrink-0"
                                                 title="Mark as read"
                                             >
                                                 <Check className="w-4 h-4" />
@@ -224,7 +224,7 @@ export default function DashboardPage() {
                         {notifications.some(n => n.type === 'schedule_change') && (
                             <button 
                                 onClick={() => handleMarkAllRead('schedule')}
-                                className="text-xs text-blue-400 hover:text-blue-300 underline"
+                                className="text-xs text-blue-400 hover:text-blue-300 underline whitespace-nowrap ml-2"
                             >
                                 Mark all as read
                             </button>
@@ -251,7 +251,7 @@ export default function DashboardPage() {
                                     </div>
                                     <button
                                         onClick={() => processMarkRead(notif.id)}
-                                        className="p-1 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded"
+                                        className="p-1 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded shrink-0"
                                         title="Mark as read"
                                     >
                                         <Check className="w-4 h-4" />
@@ -267,7 +267,7 @@ export default function DashboardPage() {
             {/* Exchange Requests Panel */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
                 {/* ... (rest of UI remains same) ... */}
-                <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex items-center justify-between">
+                <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-500/10 rounded-lg">
                             <Users className="w-5 h-5 text-indigo-500" />
@@ -276,7 +276,7 @@ export default function DashboardPage() {
                     </div>
                     
                     {/* View Toggles */}
-                    <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
+                    <div className="flex bg-slate-900/50 p-1 rounded-lg border border-slate-700/50 self-start sm:self-auto">
                         <button
                             onClick={() => setViewMode('pending')}
                             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -314,8 +314,8 @@ export default function DashboardPage() {
                         requests.map((req) => (
                             <div key={req.id} className="p-4 hover:bg-slate-700/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className={`w-2 h-2 rounded-full ${
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${
                                             req.status === 'approved' ? 'bg-emerald-500' :
                                             req.status === 'rejected' ? 'bg-red-500' :
                                             'bg-amber-500'
@@ -326,13 +326,13 @@ export default function DashboardPage() {
                                             {req.status === 'pending' ? 'Requesting exchange' : `Request ${req.status}`}
                                         </span>
                                     </div>
-                                    <div className="text-sm text-slate-400 flex items-center gap-4">
+                                    <div className="text-sm text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1">
                                         <span className="flex items-center gap-1.5">
                                             <Calendar className="w-3.5 h-3.5" />
                                             {req.assignments?.quizzes?.course_name}
                                         </span>
-                                        <span>•</span>
-                                        <span>{req.assignments?.quizzes?.date} @ {req.assignments?.quizzes?.start_time}</span>
+                                        <span className="hidden sm:inline">•</span>
+                                        <span className="w-full sm:w-auto block sm:inline">{req.assignments?.quizzes?.date} @ {req.assignments?.quizzes?.start_time}</span>
                                     </div>
                                     {req.reason && (
                                         <p className="text-xs text-slate-500 mt-2 bg-slate-900/30 p-2 rounded border border-slate-700/30 inline-block">
@@ -344,7 +344,7 @@ export default function DashboardPage() {
                                 {viewMode === 'pending' && (
                                     <button
                                         onClick={() => handleOpenAssignModal(req)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-indigo-500/20"
+                                        className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-indigo-500/20 mt-2 md:mt-0"
                                     >
                                         <UserPlus className="w-4 h-4" />
                                         Assign Replacement
@@ -359,20 +359,20 @@ export default function DashboardPage() {
             {/* Assignment Modal */}
             {selectedRequest && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-700">
-                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-700">
+                    <div className="bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-slate-700 mx-auto">
+                        <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-700">
                             <div>
                                 <h2 className="text-lg font-bold text-white">Select Replacement</h2>
                                 <p className="text-xs text-slate-400 mt-1">
                                     Original TA will receive <strong>+0.5 workload penalty</strong>
                                 </p>
                             </div>
-                            <button onClick={() => setSelectedRequest(null)} className="text-slate-400 hover:text-white">
+                            <button onClick={() => setSelectedRequest(null)} className="text-slate-400 hover:text-white p-1 -mr-2">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                        <div className="overflow-y-auto flex-1 space-y-2 pr-1 custom-scrollbar">
                             {loadingSuggestions ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                                     <Loader className="w-8 h-8 animate-spin mb-3 text-indigo-500" />

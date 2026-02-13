@@ -313,36 +313,36 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
           </div>
 
           {/* Time & Duration Inputs */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="flex  justify-center gap-10 items-start">
+            <div className="xs:w-20 sm:w-32 md:w-50 lg:w-58">
               <label className="label flex items-center gap-2 text-xs">
                 <Clock className="w-4 h-4" />
                 <span>Start Time</span>
               </label>
               <input
                 type="time"
-                className="input text-xs"
+                className="input text-xs w-full"
                 value={formData.start_time}
                 onChange={(e) => handleStartTimeChange(e.target.value)}
                 required
               />
             </div>
 
-            <div>
+            <div className="xs:w-20 sm:w-32 md:w-50 lg:w-58">
               <label className="label flex items-center gap-2 text-xs">
                 <Clock className="w-4 h-4" />
                 <span>End Time</span>
               </label>
               <input
                 type="time"
-                className="input text-xs"
+                className="input text-xs w-full"
                 value={formData.end_time}
                 onChange={(e) => handleEndTimeChange(e.target.value)}
                 required
               />
               {formData.duration_minutes > 0 && (
-                <p className="text-xs text-slate-500 mt-1 text-right">
-                  {formData.duration_minutes} minutes
+                <p className="text-xs text-slate-500 mt-1 text-right whitespace-nowrap">
+                  {formData.duration_minutes} min
                 </p>
               )}
             </div>
@@ -362,32 +362,32 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
         <div className="space-y-3">
           {locations.map((location, index) => (
             <div key={index} className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
-              <div className="flex gap-3 items-start">
-                <div className="flex-1">
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <div className="flex-1 w-full">
                   <label className="text-xs text-slate-400 mb-1 block">Location Name</label>
                   <input
                     type="text"
-                    className="input text-xs"
+                    className="input text-xs w-full"
                     placeholder="e.g., Room A101"
                     value={location.name}
                     onChange={(e) => updateLocation(index, 'name', e.target.value)}
                     required={index === 0}
                   />
                 </div>
-                <div className="w-28">
+                <div className="w-full sm:w-28">
                   <label className="text-xs text-slate-400 mb-1 block">Capacity</label>
                   <input
                     type="number"
-                    className="input text-xs"
+                    className="input text-xs w-full"
                     placeholder="Students"
                     min={1}
                     value={location.capacity || ''}
                     onChange={(e) => updateLocation(index, 'capacity', parseInt(e.target.value) || 0)}
                   />
                 </div>
-                <div className="w-24">
+                <div className="w-full sm:w-24">
                   <label className="text-xs text-slate-400 mb-1 block">Proctors</label>
-                  <div className="input bg-slate-700/50 text-center text-emerald-400 font-semibold cursor-not-allowed">
+                  <div className="input bg-slate-700/50 text-center text-emerald-400 font-semibold cursor-not-allowed w-full">
                     {location.requiredProctors}
                   </div>
                 </div>
@@ -395,7 +395,7 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
                   <button
                     type="button"
                     onClick={() => removeLocation(index)}
-                    className="mt-6 p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                    className="mt-0 sm:mt-6 p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors self-end sm:self-auto"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -445,8 +445,8 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
       {/* Confirmation Modal */}
       {showPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-xl max-w-md w-full shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+          <div className="bg-slate-800 rounded-xl max-w-md w-full shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 shrink-0">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-indigo-400" />
                 Confirm Quiz Details
@@ -460,7 +460,7 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               <div>
                 <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Course</label>
                 <p className="text-white font-medium text-lg">{formData.course_name}</p>
@@ -481,7 +481,7 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
 
               <div>
                 <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2 block">Locations & Proctors</label>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-2 pr-2">
                   {locations.filter(l => l.name).map((loc, idx) => (
                     <div key={idx} className="bg-slate-700/30 p-3 rounded-lg border border-slate-700/50 flex justify-between items-center">
                       <div>
@@ -526,7 +526,7 @@ export function QuizForm({ onSuccess, editQuiz, onCancel }: QuizFormProps) {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-900/50 border-t border-slate-700 flex gap-3">
+            <div className="p-4 bg-slate-900/50 border-t border-slate-700 flex gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowPreview(false)}

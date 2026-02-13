@@ -162,7 +162,7 @@ function AdminScheduleViewer() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
-        <div className="md:w-72 shrink-0">
+        <div className="w-full md:w-72 shrink-0">
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-medium text-slate-400">Select TA</h2>
@@ -182,7 +182,7 @@ function AdminScheduleViewer() {
               />
             </div>
 
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-2 max-h-60 md:max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {filteredTas.length === 0 ? (
                 <div className="text-center py-8">
                   <Search className="w-8 h-8 text-slate-700 mx-auto mb-2 opacity-20" />
@@ -212,7 +212,7 @@ function AdminScheduleViewer() {
 
         <div className="flex-1 overflow-hidden">
           {selectedTa ? (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 overflow-x-auto">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 overflow-x-auto custom-scrollbar">
               <div className="flex items-center justify-between mb-4 min-w-[600px]">
                 <h2 className="text-lg font-semibold text-white">{selectedTa.name}'s Schedule</h2>
                 {selectedTa.day_off && (
@@ -299,6 +299,9 @@ function TAScheduleBuilder() {
   const [showModal, setShowModal] = useState(false);
   const [showDayOffModal, setShowDayOffModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ day: string; slot: number } | null>(null);
+  
+  // Mobile Support
+  const [mobileDay, setMobileDay] = useState(DAYS.filter(d => d !== 'Friday')[0]); // Default to first available day
   const [slotForm, setSlotForm] = useState({
     course_name: '',
     course_type: 'Lecture',
@@ -565,10 +568,10 @@ function TAScheduleBuilder() {
           <h1 className="text-2xl font-bold text-white">Weekly Schedule</h1>
           <p className="text-sm text-slate-400 ">Select a slot or drag to select multiple slots</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <button
             onClick={() => setShowDayOffModal(true)}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 md:bg-transparent md:border-0 md:p-0"
           >
             Days Off: <span className="font-medium text-white">Friday, {dayOff}</span>
             <Settings className="w-4 h-4" />
@@ -623,8 +626,8 @@ function TAScheduleBuilder() {
       {/* Slot Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-700">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl border border-slate-700 custom-scrollbar">
+            <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-800 z-10 pb-2 border-b border-slate-700/50">
               <h2 className="text-xl font-bold text-white">
                 {selectedSlot && `${selectedSlot.day} - Slot ${selectedSlot.slot}`}
                 {selectionStart && selectionEnd && selectionStart.slot !== selectionEnd.slot && 
@@ -678,7 +681,7 @@ function TAScheduleBuilder() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-4 border-t border-slate-700/50 mt-4">
                 {selectedSlot && getSlotData(selectedSlot.day, selectedSlot.slot) && (
                   <button
                     onClick={deleteSlot}
@@ -703,8 +706,8 @@ function TAScheduleBuilder() {
       {/* Day Off Modal */}
       {showDayOffModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-700">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl border border-slate-700 custom-scrollbar">
+            <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-800 z-10">
               <h2 className="text-xl font-bold text-white">Change Day Off</h2>
               <button onClick={() => setShowDayOffModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
