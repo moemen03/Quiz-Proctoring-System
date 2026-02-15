@@ -19,7 +19,8 @@ import {
   Copy,
   Clock,
   Search,
-  Loader
+  Loader,
+  ChevronLeft
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -54,9 +55,13 @@ export default function ManageTAsPage() {
     end_date: '',
   });
 
+  // Section States
+  const [isTasOpen, setIsTasOpen] = useState(true);
+  const [isAdminOpen, setIsAdminOpen] = useState(true);
+
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleTaCount, setVisibleTaCount] = useState(4);
+  const [visibleTaCount, setVisibleTaCount] = useState(20);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -181,33 +186,42 @@ export default function ManageTAsPage() {
   
   const displayedTas = filteredTas.slice(0, visibleTaCount);
 
+
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting) {
-          setVisibleTaCount(prev => prev + 5);
+          setVisibleTaCount(prev => prev + 20);
         }
       },
       { rootMargin: '100px', threshold: 0.1 }
     );
     
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    const currentTarget = observerTarget.current;
+    
+    if (currentTarget) {
+      observer.observe(currentTarget);
     }
     
-    return () => observer.disconnect();
-  }, [observerTarget, filteredTas.length, visibleTaCount]); // Dependencies updated to ensure re-observation
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [filteredTas.length, visibleTaCount]); // Dependencies to re-attach when list changes
 
   // Reset pagination when search changes
   useEffect(() => {
-    setVisibleTaCount(4);
+    setVisibleTaCount(20);
   }, [searchQuery]);
 
   if (authLoading || loading) return <PageLoader />;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-6xl mx-auto pb-20 md:pb-0">
+      {/* Desktop Header */}
+      <div className="hidden md:flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Users className="w-7 h-7 text-white" />
@@ -219,16 +233,38 @@ export default function ManageTAsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[13fr_7fr] gap-8">
+      {/* Mobile Header */}
+      <div className="md:hidden flex flex-col mb-4 sticky top-0 bg-[#0f172a] z-10 py-2 -mx-4 px-4 border-b border-slate-800/50">
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => router.back()} className="p-1 -ml-1 text-slate-400 hover:text-white">
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <h1 className="text-lg font-bold text-white">Manage TAs</h1>
+          <button className="flex items-center gap-1 text-blue-400 font-medium text-sm">
+            <Plus className="w-4 h-4" />
+            Add
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 text-center -mt-2 mb-2">View TAs, administrators, and workload excuses</p>
+        
+        {/* Search Bar (Mobile Style) */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search TAs or Administrators"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[13fr_7fr] gap-5">
         {/* TAs */}
         <div>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Teaching Assistants ({filteredTas.length})
-          </h2>
-
-          {/* Search Bar */}
-          <div className="relative mb-4">
+          {/* Desktop Search - Hidden on Mobile since it's in header */}
+          <div className="relative mb-4 hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
               type="text"
@@ -239,230 +275,246 @@ export default function ManageTAsPage() {
             />
           </div>
 
-          <div className="space-y-3">
-            {displayedTas.map((ta) => {
-              const activeExcuses = getActiveExcuses(ta.id);
-              const isExpanded = expandedTa === ta.id;
-              
-              return (
-                <div key={ta.id} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 hover:border-slate-600 transition-colors">
-                    <div 
-                      className="flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer gap-4 sm:gap-0"
-                      onClick={() => setExpandedTa(isExpanded ? null : ta.id)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold shrink-0">
-                          {ta.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+          <div className="bg-slate-800/20 rounded-2xl md:bg-transparent md:p-0">
+            <button 
+              onClick={() => setIsTasOpen(!isTasOpen)}
+              className="w-full flex items-center justify-between p-4 md:p-0 md:mb-4 md:cursor-default"
+            >
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 hidden md:block" />
+                Teaching Assistants ({filteredTas.length})
+              </h2>
+              <ChevronDown className={`w-5 h-5 text-shadow-lg text-shadow-blue-500 text-slate-300 transition-transform md:hidden ${isTasOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isTasOpen && (
+              <div className="space-y-3 p-5 pt-0 md:p-0 max-h-[40vh] overflow-y-auto md:max-h-[65vh] shadow-lg shadow-blue-500/10">
+                {displayedTas.map((ta) => {
+                  const activeExcuses = getActiveExcuses(ta.id);
+                  const isExpanded = expandedTa === ta.id;
+                  
+                  return (
+                    <div key={ta.id} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-3 md:p-4 hover:border-slate-600 transition-colors">
+                        <div 
+                          className="flex items-start justify-between cursor-pointer gap-3"
+                          onClick={() => setExpandedTa(isExpanded ? null : ta.id)}
+                        >
+                          <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                            {/* Avatar */}
+                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold shrink-0 text-sm md:text-base">
+                              {ta.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </div>
+                            
+                            {/* Info */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-white truncate text-sm md:text-base">{ta.name}</p>
+                                {!schedules.some(s => s.ta_id === ta.id) && (
+                                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 text-[10px] font-bold border border-amber-500/30 whitespace-nowrap">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span className="hidden md:inline">MISSING SCHEDULE</span>
+                                    <span className="md:hidden">MS</span>
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs md:text-sm text-slate-400 truncate">{ta.email}</p>
+                              
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="bg-slate-700/50 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-600/50">
+                                  {ta.major || 'CS'}
+                                </span>
+                                {ta.last_schedule_update && (
+                                  <div className="flex items-center gap-1 text-slate-500">
+                                    <Clock className="w-3 h-3" />
+                                    <p className="text-[10px]">
+                                      {formatDistanceToNow(new Date(ta.last_schedule_update), { addSuffix: true })}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex flex-col items-end gap-2 shrink-0">
+                             <div className="flex items-center gap-3">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteUser(ta.id, ta.name);
+                                  }}
+                                  className="text-red-400/70 hover:text-red-400 p-1"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                                
+                                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                             </div>
+                             {activeExcuses.length > 0 && (
+                                <span className="text-xs text-amber-400 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span className="hidden md:inline">{activeExcuses.length} Active</span>
+                                  <span className="md:hidden">{activeExcuses.length}</span>
+                                </span>
+                              )}
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium text-white truncate">{ta.name}</p>
-                            {!schedules.some(s => s.ta_id === ta.id) && (
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 text-[10px] font-bold border border-amber-500/30 whitespace-nowrap">
-                                <AlertTriangle className="w-3 h-3" />
-                                MISSING SCHEDULE
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 group/email">
-                            <p className="text-sm text-slate-400 truncate max-w-[200px] sm:max-w-none">{ta.email}</p>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(ta.email);
-                                toast.success('Email copied!', { position: 'bottom-right' });
-                              }}
-                              className="opacity-50 cursor-pointer group-hover/email:opacity-100 p-1 hover:bg-slate-700 rounded transition-all"
-                              title="Copy email"
-                            >
-                              <Copy className="w-3 h-3 text-slate-500" />
-                            </button>
-                          </div>
-                          {ta.last_schedule_update && (
-                            <div className="flex items-center gap-1.5 mt-1 text-slate-500">
-                              <Clock className="w-3 h-3" />
-                              <p className="text-xs">
-                                Updated {formatDistanceToNow(new Date(ta.last_schedule_update), { addSuffix: true })}
+                      
+                      {isExpanded && (
+                        <div className="mt-4 pt-4 border-t border-slate-700 animate-in slide-in-from-top-2 duration-200">
+                          {/* Workload Info */}
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30">
+                              <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Current Workload</p>
+                              <p className="text-lg font-semibold text-white">
+                                {(ta.total_workload_points || 0).toFixed(1)}
                               </p>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-[64px] sm:pl-0">
-                        <div className="flex items-center gap-3">
-                          {activeExcuses.length > 0 && (
-                            <span className="text-xs text-amber-400 flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3" />
-                              {activeExcuses.length}
-                            </span>
-                          )}
-                          <span className="text-xs text-slate-500">{ta.major || 'CS'}</span>
-                          
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteUser(ta.id, ta.name);
-                            }}
-                            className="p-1 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300 transition-colors"
-                            title="Delete TA"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-slate-400" />
-                        )}
-                      </div>
-                    </div>
-                  
-                  {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-slate-700">
-                      {/* Workload Info */}
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-slate-400 mb-1">Current Workload</p>
-                          <p className="text-lg font-semibold text-white">
-                            {(ta.total_workload_points || 0).toFixed(1)}
-                          </p>
-                        </div>
-                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-slate-400 mb-1">Target</p>
-                          <p className="text-lg font-semibold text-white">
-                            {((ta.target_workload || 14) ).toFixed(1)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Active Excuses */}
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium text-slate-300">Active Excuses</h4>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowExcuseForm(ta.id);
-                            }}
-                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" />
-                            Add Excuse
-                          </button>
-                        </div>
-                        {activeExcuses.length === 0 ? (
-                          <p className="text-xs text-slate-500 italic">No active excuses</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {activeExcuses.map(excuse => {
-                              const typeInfo = EXCUSE_TYPES.find(t => t.value === excuse.excuse_type);
-                              const Icon = typeInfo?.icon || FileText;
-                              return (
-                                <div 
-                                  key={excuse.id}
-                                  className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Icon className={`w-4 h-4 ${typeInfo?.color || 'text-slate-400'}`} />
-                                    <div>
-                                      <p className="text-sm text-white">{typeInfo?.label}</p>
-                                      <p className="text-xs text-slate-400">
-                                        {excuse.start_date}
-                                        {excuse.end_date ? ` to ${excuse.end_date}` : ' (ongoing)'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRevokeExcuse(excuse.id);
-                                    }}
-                                    className="text-red-400 hover:text-red-300 p-1"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              );
-                            })}
+                            <div className="bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30">
+                              <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Target</p>
+                              <p className="text-lg font-semibold text-white">
+                                {((ta.target_workload || 14) ).toFixed(1)}
+                              </p>
+                            </div>
                           </div>
-                        )}
-                      </div>
+                          
+                          {/* Active Excuses */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Excuses</h4>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowExcuseForm(ta.id);
+                                }}
+                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Add
+                              </button>
+                            </div>
+                            {activeExcuses.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic py-2">No active excuses</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {activeExcuses.map(excuse => {
+                                  const typeInfo = EXCUSE_TYPES.find(t => t.value === excuse.excuse_type);
+                                  const Icon = typeInfo?.icon || FileText;
+                                  return (
+                                    <div 
+                                      key={excuse.id}
+                                      className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800_30 border border-slate-700/30"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className={`p-1.5 rounded-md bg-slate-800 ${typeInfo?.color || 'text-slate-400'}`}>
+                                           <Icon className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-medium text-slate-200">{typeInfo?.label}</p>
+                                          <p className="text-[10px] text-slate-500">
+                                            {excuse.start_date}
+                                            {excuse.end_date ? ` → ${excuse.end_date}` : ' (ongoing)'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRevokeExcuse(excuse.id);
+                                        }}
+                                        className="text-red-400 hover:text-red-300 p-1.5 hover:bg-red-500/10 rounded-md transition-colors"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-            {filteredTas.length === 0 && (
-              <div className="text-center py-8 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
-                <Search className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-slate-400">No TAs found matching "{searchQuery}"</p>
-              </div>
-            )}
-            
-            {/* Infinite Scroll Trigger & Load More */}
-            {displayedTas.length < filteredTas.length && (
-              <div 
-                ref={observerTarget} 
-                className="py-4 flex flex-col items-center justify-center gap-2"
-              >
-                <Loader className="w-6 h-6 animate-spin text-slate-500" />
-                <button 
-                  onClick={() => setVisibleTaCount(prev => prev + 5)}
-                  className="text-xs text-slate-500 hover:text-white underline md:hidden"
-                >
-                  Load More
-                </button>
+                  );
+                })}
+                {filteredTas.length === 0 && (
+                  <div className="text-center py-8 bg-slate-800/30 rounded-xl border border-dashed border-slate-700 mx-4 md:mx-0">
+                    <Search className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-slate-400">No TAs found</p>
+                  </div>
+                )}
+                
+                {/* Infinite Scroll Trigger & Load More */}
+                {displayedTas.length < filteredTas.length && (
+                  <div 
+                    ref={observerTarget} 
+                    className="py-4 flex flex-col items-center justify-center gap-2"
+                  >
+                    <Loader className="w-6 h-6 animate-spin text-slate-500" />
+                    <button 
+                      onClick={() => setVisibleTaCount(prev => prev + 20)}
+                      className="text-xs text-slate-500 hover:text-white underline md:hidden"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
 
         {/* Admins */}
-        <div>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-indigo-500" />
-            Administrators ({admins.length})
-          </h2>
-          <div className="space-y-3">
-            {admins.map((admin) => (
-              <div
-                key={admin.id}
-                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                    {admin.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </div>
-                  <div>
-                    <p className="font-medium text-white text-sm">{admin.name}</p>
-                    <div className="flex items-center gap-2 group/admin-email">
+        <div className="shadow-lg shadow-blue-500/10 bg-slate-800/20 rounded-2xl md:bg-transparent md:p-0 mt-4 md:mt-0">
+           <button 
+              onClick={() => setIsAdminOpen(!isAdminOpen)}
+              className="w-full flex items-center justify-between p-4 md:p-0 md:mb-4 md:cursor-default"
+            >
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 hidden md:block" />
+                Administrators ({admins.length})
+              </h2>
+              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform md:hidden ${isAdminOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+          {isAdminOpen && (
+            <div className="space-y-3 p-4 pt-0 md:p-0">
+              {admins.map((admin) => (
+                <div
+                  key={admin.id}
+                  className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-3 md:p-4 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
+                      {admin.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-white text-sm">{admin.name}</p>
                       <p className="text-slate-400 text-[10px]">{admin.email}</p>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(admin.email);
-                          toast.success('Email copied!', { position: 'bottom-right' });
-                        }}
-                        className="opacity-50 cursor-pointer group-hover/admin-email:opacity-100 p-0.5 hover:bg-slate-700 rounded transition-all"
-                        title="Copy email"
-                      >
-                        <Copy className="w-2.5 h-2.5 text-slate-500" />
-                      </button>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end">
+                      <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-medium border border-indigo-500/30">Admin</span>
+                    </div>
+                    <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteUser(admin.id, admin.name);
+                        }}
+                        className="text-red-400/70 hover:text-red-400 p-1 md:hidden"
+                      >
+                       <X className="w-4 h-4" />
+                    </button>
+                    <ChevronDown className="w-5 h-5 text-slate-500 md:hidden" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 mr-2">{admin.major || 'CS'}</span>
-                  <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded textxs font-medium border border-indigo-500/30">Admin</span>
-                </div>
-              </div>
-            ))}
-            {admins.length === 0 && (
-              <p className="text-slate-400 text-center py-8">No admins added yet</p>
-            )}
-          </div>
+              ))}
+              {admins.length === 0 && (
+                <p className="text-slate-400 text-center py-8">No admins added yet</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

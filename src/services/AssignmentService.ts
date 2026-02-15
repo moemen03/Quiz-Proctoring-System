@@ -22,20 +22,55 @@ export class AssignmentService {
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const quizDayName = dayNames[quizDate.getDay()];
 
+        // 0. Fetch Settings
+        const { data: settings } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'ramadan_mode')
+            .single();
+
+        let isRamadan = false;
+        if (settings?.value?.enabled) {
+            const { start_date, end_date } = settings.value;
+            if (start_date && end_date) {
+                const start = new Date(start_date);
+                const end = new Date(end_date);
+                // Reset times to compare dates only
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999);
+
+                if (quizDate >= start && quizDate <= end) {
+                    isRamadan = true;
+                }
+            }
+        }
+
         // 1. Calculate Time Slots
         const timeToSlot = (time: string): number[] => {
             const [hours, minutes] = time.split(':').map(Number);
             const totalMinutes = hours * 60 + minutes;
 
-            const slots = [
-                { slot: 1, start: 8 * 60 + 30, end: 10 * 60 + 0 },    // 8:30 - 10:00
-                { slot: 2, start: 10 * 60 + 15, end: 11 * 60 + 45 },  // 10:15 - 11:45
-                { slot: 3, start: 12 * 60, end: 13 * 60 + 30 },       // 12:00 - 13:30
-                { slot: 4, start: 14 * 60, end: 15 * 60 + 30 },       // 14:00 - 15:30
-                { slot: 5, start: 15 * 60 + 45, end: 17 * 60 + 15 },  // 15:45 - 17:15
-                { slot: 6, start: 17 * 60 + 30, end: 19 * 60 },       // 17:30 - 19:00
-                { slot: 7, start: 19 * 60 + 15, end: 20 * 60 + 45 },  // 19:15 - 20:45
-            ];
+            let slots;
+
+            if (isRamadan) {
+                slots = [
+                    { slot: 1, start: 8 * 60 + 30, end: 9 * 60 + 40 },    // 8:30 - 9:40
+                    { slot: 2, start: 9 * 60 + 45, end: 10 * 60 + 55 },   // 9:45 - 10:55
+                    { slot: 3, start: 11 * 60 + 5, end: 12 * 60 + 15 },   // 11:05 - 12:15
+                    { slot: 4, start: 12 * 60 + 25, end: 13 * 60 + 35 },  // 12:25 - 13:35
+                    { slot: 5, start: 13 * 60 + 40, end: 14 * 60 + 50 },  // 13:40 - 14:50
+                ];
+            } else {
+                slots = [
+                    { slot: 1, start: 8 * 60 + 30, end: 10 * 60 + 0 },    // 8:30 - 10:00
+                    { slot: 2, start: 10 * 60 + 15, end: 11 * 60 + 45 },  // 10:15 - 11:45
+                    { slot: 3, start: 12 * 60, end: 13 * 60 + 30 },       // 12:00 - 13:30
+                    { slot: 4, start: 13 * 60 + 45, end: 15 * 60 + 15 },  // 13:45 - 15:15
+                    { slot: 5, start: 15 * 60 + 45, end: 17 * 60 + 15 },  // 15:45 - 17:15
+                    { slot: 6, start: 17 * 60 + 30, end: 19 * 60 },       // 17:30 - 19:00
+                    { slot: 7, start: 19 * 60 + 15, end: 20 * 60 + 45 },  // 19:15 - 20:45
+                ];
+            }
 
             const quizDuration = quiz.duration_minutes || 60;
             const quizEnd = totalMinutes + quizDuration;

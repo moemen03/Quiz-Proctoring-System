@@ -20,7 +20,8 @@ import {
   Check,
   AlertTriangle,
   Flag,
-  Plus
+  Plus,
+  ChevronLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
@@ -173,29 +174,45 @@ export default function QuizzesPage() {
     message += `\nthanks,\n${user?.name || 'Admin'}`;
 
     try {
-      await navigator.clipboard.writeText(message);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(message);
+      } else {
+        // Fallback for non-secure contexts (like mobile dev over HTTP)
+        const textArea = document.createElement("textarea");
+        textArea.value = message;
+        textArea.style.position = "fixed"; // Avoid scrolling to bottom
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+            throw new Error('Clipboard fallback failed');
+        }
+        document.body.removeChild(textArea);
+      }
       setCopiedQuizId(quiz.id);
       setTimeout(() => setCopiedQuizId(null), 2000);
+      toast.success('Quiz details copied to clipboard');
     } catch (err) {
       console.error('Failed to copy text: ', err);
+      toast.error('Failed to copy. Please try manually.');
     }
   };
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       upcoming: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      started: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
       finished: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
       in_progress: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      completed: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
       cancelled: 'bg-red-500/20 text-red-400 border-red-500/30',
     };
     const labels: Record<string, string> = {
       upcoming: 'Upcoming',
-      started: 'Ongoing',
-      finished: 'Completed',
+      finished: 'Finished',
       in_progress: 'Ongoing',
-      completed: 'Completed',
       cancelled: 'Cancelled',
     };
     return { 
@@ -267,7 +284,31 @@ export default function QuizzesPage() {
     ).sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime());
   }, [filteredQuizzes]);
 
-  // Request Exchange State
+  // Collapsible State
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+
+  // Initialize only the first date (latest) to expanded by default when groups change
+  useEffect(() => {
+    if (groupedQuizzes.length > 0) {
+       setExpandedDates(prev => {
+         const newState = { ...prev };
+         groupedQuizzes.forEach(([date], index) => {
+           if (newState[date] === undefined) {
+             newState[date] = index === 0; // Only expand the first one
+           }
+         });
+         return newState;
+       });
+    }
+  }, [groupedQuizzes]);
+
+  const toggleDate = (date: string) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [date]: !prev[date]
+    }));
+  };
+
   const [requestingExchange, setRequestingExchange] = useState<{ id: string, name: string } | null>(null);
   const [exchangeReason, setExchangeReason] = useState('');
 
@@ -367,17 +408,31 @@ export default function QuizzesPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {groupedQuizzes.map(([date, dateQuizzes]) => (
+          {groupedQuizzes.map(([date, dateQuizzes]) => {
+            const isExpanded = expandedDates[date];
+            
+            return (
             <div key={date}>
-              <h2 className="text-base font-semibold text-slate-400 mb-3 flex items-center gap-2 sticky top-0 bg-slate-900/95 py-3 z-10 backdrop-blur-sm border-b border-slate-800/50">
-                <Calendar className="w-4 h-4 text-indigo-400" />
-                {new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                <span className="bg-slate-800 text-slate-500 text-sm px-1.5 py-0.5 rounded-full ml-1">
-                  {dateQuizzes.length}
-                </span>
-              </h2>
+              <button 
+                onClick={() => toggleDate(date)}
+                className="w-full text-left bg-slate-900/95 backdrop-blur-sm border-b border-slate-800/50 sticky top-0 z-10 py-3 mb-4 group flex items-center justify-between transition-colors hover:bg-slate-800/50 px-2 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-indigo-500/10 text-indigo-400' : 'bg-slate-800 text-slate-500 group-hover:text-slate-400'}`}>
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-slate-200 group-hover:text-white transition-colors">
+                    {new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </span>
+                  <span className="bg-slate-800 text-slate-500 text-xs px-2 py-0.5 rounded-full font-medium border border-slate-700">
+                    {dateQuizzes.length}
+                  </span>
+                </div>
+                
+                <ChevronLeft className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${isExpanded ? '-rotate-90' : 'rotate-0'}`} />
+              </button>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 transition-all duration-300 origin-top ${isExpanded ? 'opacity-100' : 'hidden opacity-0 h-0 overflow-hidden'}`}>
                 {dateQuizzes.map((quiz) => {
                   const assignedCount = quiz.assignments?.length || 0;
                   
@@ -399,7 +454,7 @@ export default function QuizzesPage() {
                         activeMenuQuiz === quiz.id ? 'z-20 ring-1 ring-indigo-500/50' : 'z-0'
                       } ${
                         isInsufficient 
-                          ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/60 shadow-[0_0_15px_-5px_theme(colors.red.900)]' 
+                          ? 'bg-red-950/20 border-red-500/40 hover:border-red-500/60 shadow-[0_0_15px_-5px_#7f1d1d]' 
                           : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600'
                       }`}
                     >
@@ -438,7 +493,7 @@ export default function QuizzesPage() {
 
                             <button
                               onClick={() => handleCopyQuiz(quiz)}
-                              className={`p-1 rounded transition-colors ${
+                              className={`p-2 rounded transition-colors ${
                                 copiedQuizId === quiz.id 
                                   ? 'bg-emerald-500/20 text-emerald-400' 
                                   : 'text-slate-500 hover:text-white hover:bg-slate-700'
@@ -538,7 +593,7 @@ export default function QuizzesPage() {
                               const myAssignment = getUserAssignment(locationAssignments);
 
                               return (
-                                <div key={loc.id} className="flex flex-col gap-1.5 p-2 rounded bg-slate-800/50 border border-slate-700/30">
+                                <div key={loc.id} className="shadow-md shadow-blue-900/40 flex flex-col gap-1.5 p-2 rounded bg-slate-800/50 border border-slate-700/30">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-slate-300">{loc.name}</span>
@@ -645,7 +700,8 @@ export default function QuizzesPage() {
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -246,3 +246,12 @@ export const notificationApi = {
             body: JSON.stringify({ category })
         }),
 };
+
+export const settingsApi = {
+    getRamadanMode: () => fetchApi<{ enabled: boolean; start_date?: string; end_date?: string }>('/settings/ramadan'),
+    setRamadanMode: (enabled: boolean, start_date?: string, end_date?: string) =>
+        fetchApi<void>('/settings/ramadan', {
+            method: 'POST',
+            body: JSON.stringify({ enabled, start_date, end_date })
+        }),
+};

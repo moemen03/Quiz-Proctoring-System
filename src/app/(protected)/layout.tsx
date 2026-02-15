@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { PageLoader } from '@/components/LoadingSpinner';
 import { SidebarLayout } from '@/components/SidebarLayout';
+import { RamadanWelcomeModal } from '@/components/RamadanWelcomeModal';
 
 export default function ProtectedLayout({
   children,
@@ -28,5 +29,10 @@ export default function ProtectedLayout({
     return null; // Will redirect
   }
 
-  return <SidebarLayout>{children}</SidebarLayout>;
+  return (
+    <>
+      <RamadanWelcomeModal />
+      <SidebarLayout>{children}</SidebarLayout>
+    </>
+  );
 }

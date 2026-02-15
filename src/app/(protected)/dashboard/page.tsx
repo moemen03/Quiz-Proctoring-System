@@ -12,12 +12,14 @@ import {
     ArrowRight,
     Search,
     Loader,
-    Clock
+    Clock,
+    Moon
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { PageLoader } from '@/components/LoadingSpinner';
-import { exchangeApi, assignmentApi, notificationApi, ExchangeRequest, TASuggestion, Notification } from '@/lib/api-client';
+import { exchangeApi, assignmentApi, notificationApi, settingsApi, ExchangeRequest, TASuggestion, Notification } from '@/lib/api-client';
+import confetti from 'canvas-confetti';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function DashboardPage() {
@@ -36,6 +38,9 @@ export default function DashboardPage() {
     const [viewMode, setViewMode] = useState<'pending' | 'history'>('pending');
 
     const [notificationError, setNotificationError] = useState<string | null>(null);
+    const [ramadanMode, setRamadanMode] = useState(false);
+    const [showRamadanModal, setShowRamadanModal] = useState(false);
+    const [ramadanDates, setRamadanDates] = useState({ start: '', end: '' });
 
     useEffect(() => {
         if (!authLoading) {
@@ -65,11 +70,68 @@ export default function DashboardPage() {
                 console.error('Failed to load notifications:', error);
                 setNotificationError('Failed to load alerts');
             }
+            loadSettings();
         } catch (error) {
             console.error('Failed to load requests:', error);
             toast.error('Failed to load exchange requests');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadSettings = async () => {
+        try {
+            const { enabled, start_date, end_date } = await settingsApi.getRamadanMode();
+            setRamadanMode(enabled);
+            if (start_date && end_date) {
+                setRamadanDates({ start: start_date, end: end_date });
+            }
+        } catch (e) {
+            console.error('Failed to load settings', e);
+        }
+    };
+
+    const handleRamadanToggle = () => {
+        if (!ramadanMode) {
+            // Enabling: Show modal
+            setShowRamadanModal(true);
+        } else {
+            // Disabling: Direct API call
+            toggleRamadanMode(false);
+        }
+    };
+
+    const toggleRamadanMode = async (enabled: boolean, dates?: { start: string, end: string }) => {
+        setRamadanMode(enabled); // Optimistic
+        try {
+            await settingsApi.setRamadanMode(enabled, dates?.start, dates?.end);
+            toast.success(`Ramadan Mode ${enabled ? 'Enabled' : 'Disabled'}`);
+            setShowRamadanModal(false);
+            if (dates) setRamadanDates(dates);
+            
+            if (enabled) {
+                const duration = 3 * 1000;
+                const animationEnd = Date.now() + duration;
+                const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+                const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+                const interval: any = setInterval(function() {
+                    const timeLeft = animationEnd - Date.now();
+
+                    if (timeLeft <= 0) {
+                        return clearInterval(interval);
+                    }
+
+                    const particleCount = 50 * (timeLeft / duration);
+                    // since particles fall down, start a bit higher than random
+                    confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }, colors: ['#fbbf24', '#10b981'] });
+                    confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }, colors: ['#fbbf24', '#10b981'] });
+                }, 250);
+            }
+        } catch (e) {
+            setRamadanMode(!enabled);
+            toast.error('Failed to update setting');
         }
     };
 
@@ -137,9 +199,30 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
             <Toaster position="top-center" />
             
-            <div className="mb-6 md:mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-                <p className="text-slate-400">Overview and pending actions</p>
+            <div className="mb-6 md:mb-8 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+                    <p className="text-slate-400">Overview and pending actions</p>
+                </div>
+
+                <button
+                    onClick={handleRamadanToggle}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                        ramadanMode 
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-400' 
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-300'
+                    }`}
+                >
+                    <Moon className="w-4 h-4" />
+                    <span className="font-medium text-sm">Ramadan Vibes</span>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors relative ${
+                        ramadanMode ? 'bg-amber-500' : 'bg-slate-600'
+                    }`}>
+                        <div className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                            ramadanMode ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                    </div>
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -415,6 +498,54 @@ export default function DashboardPage() {
                                     </button>
                                 ))
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Ramadan Date Modal */}
+            {showRamadanModal && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-slate-800 rounded-xl p-6 max-w-sm w-full border border-slate-700 shadow-2xl">
+                        <h2 className="text-lg font-bold text-white mb-4">Enable Ramadan Mode</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">Start Date</label>
+                                <input 
+                                    type="date" 
+                                    value={ramadanDates.start}
+                                    onChange={(e) => setRamadanDates({ ...ramadanDates, start: e.target.value })}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">End Date</label>
+                                <input 
+                                    type="date" 
+                                    value={ramadanDates.end}
+                                    onChange={(e) => setRamadanDates({ ...ramadanDates, end: e.target.value })}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm"
+                                />
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button 
+                                    onClick={() => setShowRamadanModal(false)}
+                                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (!ramadanDates.start || !ramadanDates.end) {
+                                            toast.error('Please select both dates');
+                                            return;
+                                        }
+                                        toggleRamadanMode(true, ramadanDates);
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-sm font-bold"
+                                >
+                                    Enable
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

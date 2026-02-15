@@ -30,6 +30,7 @@ const baseNavigation = [
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showMobileProfile, setShowMobileProfile] = useState(false);
   const pathname = usePathname();
 
   const navigation = baseNavigation.map(item => {
@@ -175,10 +176,71 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* Mobile Logout (Optional, or put in profile) - For now, maybe just the nav items is enough space. 
-            If valid user, maybe shows visual indicator? 
-            Let's keep it simple for now as requested: "minimized , icons with label"
-        */}
+        
+        {/* Mobile Profile Button */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMobileProfile(!showMobileProfile)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+              showMobileProfile ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-700 flex items-center justify-center">
+               {user?.name ? (
+                 <span className="text-[10px] font-bold text-white">{user.name.charAt(0)}</span>
+               ) : (
+                 <Users className="w-3 h-3 text-slate-300" />
+               )}
+            </div>
+            <span className="text-[10px] font-medium max-w-[60px] truncate text-center leading-tight">
+              Profile
+            </span>
+          </button>
+
+          {/* Mobile Profile Menu Popover */}
+          {showMobileProfile && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                onClick={() => setShowMobileProfile(false)}
+              />
+              <div className="absolute bottom-full right-0 mb-4 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-200">
+                <div className="p-4 border-b border-slate-700 bg-slate-900/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shrink-0">
+                      {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-white truncate">{user?.name || 'User'}</p>
+                      <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${
+                          isAdmin 
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                            : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                        }`}>
+                          {isAdmin ? 'Admin' : 'TA'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-2">
+                  <button
+                    onClick={() => {
+                      logout();
+                      setShowMobileProfile(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-sm font-medium"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </nav>
     </div>
   );
